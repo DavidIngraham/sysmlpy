@@ -93,7 +93,7 @@ on `P::Sub::Engine`. Often sufficient; cheapest.
 
 ## 4. Recommended scope
 
-Phase 1 (L2) — **IMPLEMENTED (v0.96.3)**:
+Phase 1 (L2) — **IMPLEMENTED (unreleased; on main)**:
 
 1. ✅ `interchange.py`: `to_interchange(..., stable_ids=False)` — when
    True, ids are uuid5 over the **declared** qualified-name path
