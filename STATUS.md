@@ -1,8 +1,20 @@
 # sysmlpy — Project Status
 
-Current version: **v0.96.1** (2026-09-25)
+Current version: **v0.96.2** (2026-09-28)
 
 ---
+
+## Recent Highlights (v0.96.2)
+
+- **Grammar upgraded to OMG release 2026-08**: vendored grammar is now
+  daltskin/sysml-v2-grammar v2026.08.1 (upstream #11 expression cascade
+  + #16 required import visibility). Bare `import X;` is a
+  `SysMLSyntaxError`.
+- **Non-normative forms removed** per the upstream review: bare
+  qualified identification and connector-end trailing multiplicity.
+  Normative forms (`connect [1] a to b;`, `subject : Q::N;`) round-trip.
+- OMG XPect conformance: 123 passed / 3 skipped; grammar round-trip
+  168/168; fast suite 595 passed; KerML batteries 5/5.
 
 ## Recent Highlights (v0.96.1)
 

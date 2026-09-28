@@ -1,5 +1,30 @@
 # CHANGELOG
 
+## v0.96.2 (2026-09-28)
+
+- **Grammar upgraded to OMG release 2026-08** — the vendored ANTLR4
+  grammar is now daltskin/sysml-v2-grammar **v2026.08.1** (upstream
+  `14b0d7a`), replacing the 2026.05.0 base + local patches. Includes
+  upstream #11's flat precedence-correct `ownedExpression` cascade and
+  upstream #16's required import visibility (bare `import X;` is now a
+  `SysMLSyntaxError`; use `private`/`public`/`protected`).
+- **Non-normative forms removed** (resolved against the OMG KEBNF and
+  the pilot KerMLExpressions.xtext with daltskin): bare qualified
+  identification (`subject SystemGateway::System_Driver;` — use the
+  typed form `subject : SystemGateway::System_Driver;`) and
+  connector-end trailing multiplicity (`connect a[1] to b;` — use the
+  normative leading form `connect [1] a to b;`).
+- Visitor: structured expression chains re-emitted from the flat
+  left-recursive parse tree (revived v0.52.0 splice machinery);
+  symbol-form `&`/`|` operators structured; multi-segment
+  `FeatureChainMember` (one context, many name segments) fully
+  captured so feature-chain type resolution reports the whole chain.
+- `ConnectorEnd` preserves the normative leading cross-multiplicity
+  and dumps it before the declared name.
+- All gates green: grammar 168/168, fast suite 595 passed/1 skipped,
+  OMG XPect conformance 123 passed/3 skipped (optional-dep skips),
+  KerML batteries 5/5.
+
 ## v0.96.1 (2026-09-25)
 
 - **doc comments survive everywhere** — `doc /* ... */` on a package,

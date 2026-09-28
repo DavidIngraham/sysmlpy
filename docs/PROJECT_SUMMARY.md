@@ -1,8 +1,8 @@
 # sysmlpy — Project Work Summary
 
 > **For:** Future agents and team members
-> **Last Updated:** September 25, 2026
-> **Current Version:** v0.96.1
+> **Last Updated:** September 28, 2026
+> **Current Version:** v0.96.2
 > **Repository:** https://github.com/mycr0ft/sysmlpy
 > **Roadmap:** the 10-goal Adoption Roadmap (docs/archive/DEVELOPMENT_PLAN.md,
 > now archived) is **complete** as of v0.77.0 — see CHANGELOG.md
@@ -83,6 +83,9 @@ SysML text → ANTLR4 Lexer/Parser → Parse Tree
 - All 68+ `raise NotImplementedError` stubs replaced with graceful handling (v0.27.0)
 - Missing classes added: `DefinitionBody`, `DefinitionBodyItem`, `FeatureSpecializationPart`, `SubclassificationPart`
 - `classtree()` converts Model tree back to text
+- v0.96.2: grammar upgraded to daltskin v2026.08.1 (OMG 2026-08 KEBNF,
+  #11 expression cascade, #16 required import visibility); withdrawn
+  non-normative forms removed; all normative gates green
 - v0.96.1: `doc /* ... */` comments on packages and all usage/definition
   kinds (`.doc` attribute) and interface ends (`end p;`,
   `end p ::> part.port;` → `Interface.ends` / `Interface.iface_connections`)
