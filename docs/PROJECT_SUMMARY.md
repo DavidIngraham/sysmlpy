@@ -264,6 +264,32 @@ Export is lossless: the rebuilt model's `dump()` text, grammar-object
 tree, and traceability report are identical to the original, and
 re-exporting a rebuilt model reproduces byte-identical JSON.
 
+#### Element identity: parse uuid4 vs interchange uuid5
+
+Element identity behaves differently per layer — knowing which is which
+matters whenever something downstream must reference an element across
+parses or tools:
+
+| Layer | Identifier | Stable across parses? |
+|---|---|---|
+| Parse (`loads()`) | Model root and *anonymous* elements get a fresh **uuid4** as their `name`; named elements carry no generated identifier | ❌ new uuid4 every parse |
+| Interchange (`to_interchange`) | every element gets `@id`: deterministic **uuid5** from tree position under a fixed namespace | ✅ byte-identical JSON on every export |
+| Round trip (`from_interchange`) | rebuild via the `@graph`; re-export reproduces the identical `@graph` | ✅ identity preserved |
+
+Notes for downstream tooling:
+
+- No parsed element has a `.uuid` attribute — the only uuid4 names are
+  the Model root and anonymous declarations (`part : Engine;`).
+  Normalize both in round-trip comparisons.
+- The interchange `@id` is **position-derived**, not content-derived:
+  the same element inside a different parent (or reordered package)
+  hashes differently.  For a given source text the ids are stable, which
+  is what diff-friendly interchange needs; for cross-document matching,
+  match on declared names / resolved qualified names.
+- Full walkthrough: `examples/element_identity.py` — parses twice,
+  shows the fresh uuid4 vs the stable `@id`s, and proves the round trip
+  preserves identity.
+
 ### Requirement Traceability (v0.62.0 — Adoption Roadmap Goal 2)
 
 The satisfy / verify / verification relationships parse, round-trip, and
