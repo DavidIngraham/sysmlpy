@@ -366,3 +366,106 @@ class TestPublicApi:
         assert sysmlpy.to_interchange is to_interchange
         assert sysmlpy.from_interchange is from_interchange
         assert sysmlpy.interchange_to_json_text is interchange_to_json_text
+
+
+# ---------------------------------------------------------------------------
+# stable (content-addressed) ids — L2 idempotency
+# ---------------------------------------------------------------------------
+
+
+def _find_id(document, declared_name, type_name="Identification"):
+    ids = [e["@id"] for e in document["@graph"]
+           if e.get("declaredName") == declared_name
+           and e["@type"] == type_name]
+    assert len(ids) == 1, f"expected one {declared_name!r}, got {ids}"
+    return ids[0]
+
+
+class TestStableIds:
+    """stable_ids=True: content-addressed ids (docs/stable-identities.md §3-A).
+
+    L2 guarantees verified here, from the probe matrix in the scope doc:
+    - unrelated sibling insertion/reorder leaves ids unchanged
+    - ids follow declared identity: renaming an ancestor (which changes
+      the qualified-name path) re-mints ids under it — by design
+    - collision groups (same name + type under one parent) stay unique
+      via occurrence index
+    - default (position-derived) ids are untouched when stable_ids=False
+    """
+
+    def test_l1_same_text_byte_identical(self):
+        src = "package P { part def Engine; part e : Engine; }"
+        d1 = to_interchange(src, stable_ids=True)
+        d2 = to_interchange(src, stable_ids=True)
+        assert json.dumps(d1, sort_keys=True) == json.dumps(d2, sort_keys=True)
+
+    def test_l2_sibling_insertion_before_leaves_id(self):
+        base = "package P { part def Engine; }"
+        edited = "package P { part def Dummy; part def Engine; }"
+        assert _find_id(to_interchange(edited, stable_ids=True), "Engine") \
+            == _find_id(to_interchange(base, stable_ids=True), "Engine")
+
+    def test_l2_sibling_insertion_after_leaves_id(self):
+        base = "package P { part def Engine; }"
+        edited = "package P { part def Engine; part def Extra; }"
+        assert _find_id(to_interchange(edited, stable_ids=True), "Engine") \
+            == _find_id(to_interchange(base, stable_ids=True), "Engine")
+
+    def test_l2_inner_feature_insertion_before_leaves_id(self):
+        base = "package P { part def Engine { attribute power; } }"
+        edited = "package P { part def Engine { attribute mass; attribute power; } }"
+        assert _find_id(to_interchange(edited, stable_ids=True), "power") \
+            == _find_id(to_interchange(base, stable_ids=True), "power")
+
+    def test_qn_follows_declared_identity(self):
+        # renaming the parent changes Engine's qualified-name path —
+        # the id follows identity (content), unlike position ids which
+        # happened to survive this case
+        p = to_interchange("package P { part def Engine; }", stable_ids=True)
+        q = to_interchange("package Q { part def Engine; }", stable_ids=True)
+        assert _find_id(p, "Engine") != _find_id(q, "Engine")
+
+    def test_renesting_changes_id(self):
+        flat = to_interchange("package P { part def Engine; }", stable_ids=True)
+        nested = to_interchange(
+            "package P { package Inner { part def Engine; } }",
+            stable_ids=True,
+        )
+        assert _find_id(flat, "Engine") != _find_id(nested, "Engine")
+
+    def test_collision_group_ids_distinct(self):
+        d = to_interchange(
+            "package P { part def Engine; part def Engine; }",
+            stable_ids=True,
+        )
+        ids = [e["@id"] for e in d["@graph"]
+               if e.get("declaredName") == "Engine"
+               and e["@type"] == "Identification"]
+        assert len(ids) == 2 and ids[0] != ids[1]
+
+    def test_graph_ids_unique_rich_model(self):
+        d = to_interchange(loads(RICH_MODEL), stable_ids=True)
+        ids = [e["@id"] for e in d["@graph"]]
+        assert len(ids) == len(set(ids))
+
+    def test_round_trip_preserves_graph(self):
+        d1 = to_interchange(loads(RICH_MODEL), stable_ids=True)
+        d2 = to_interchange(from_interchange(d1), stable_ids=True)
+        assert d2["@graph"] == d1["@graph"]
+
+    def test_default_ids_unchanged(self):
+        # stable_ids=False (default) keeps the v0.63.0 position ids
+        src = "package P { part def Engine; }"
+        d1 = to_interchange(src)
+        d2 = to_interchange(src, stable_ids=False)
+        assert d1["@graph"] == d2["@graph"]
+        assert not _find_id(d1, "Engine").startswith(
+            # different uuid5 namespace from the stable scheme
+            _find_id(to_interchange(src, stable_ids=True), "Engine")[:-12]
+        )
+
+    def test_stable_ids_differ_from_position_ids(self):
+        src = "package P { part def Engine; }"
+        pos = _find_id(to_interchange(src), "Engine")
+        stb = _find_id(to_interchange(src, stable_ids=True), "Engine")
+        assert pos != stb

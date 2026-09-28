@@ -394,7 +394,7 @@ def cmd_export(args) -> int:
         return 2
 
     try:
-        document = to_interchange(model)
+        document = to_interchange(model, stable_ids=args.stable_ids)
     except Exception as e:
         print(f"Error: export failed on this model: {e}", file=sys.stderr)
         return 1
@@ -966,6 +966,12 @@ def build_parser() -> argparse.ArgumentParser:
     p_export.add_argument(
         "--compact", action="store_true",
         help="Emit compact JSON (no indentation)",
+    )
+    p_export.add_argument(
+        "--stable-ids", action="store_true",
+        help="Content-address element @ids (L2 idempotency): ids follow "
+             "declared qualified-name paths, so inserting/reordering "
+             "unrelated elements elsewhere leaves untouched ids unchanged",
     )
     p_export.add_argument(
         "-l", "--library",

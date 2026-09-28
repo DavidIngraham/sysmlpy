@@ -112,6 +112,34 @@ def main() -> None:
     print("\nJSON-LD excerpt:")
     print(interchange_to_json_text({"@graph": d1["@graph"][:2]}, indent=2))
 
+    banner("4) stable_ids=True — content-addressed ids that survive edits")
+    d_pos = to_interchange(m1)
+    d_stb = to_interchange(m1, stable_ids=True)
+    eng_pos = next(e["@id"] for e in d_pos["@graph"]
+                   if e.get("declaredName") == "Engine")
+    eng_stb = next(e["@id"] for e in d_stb["@graph"]
+                   if e.get("declaredName") == "Engine")
+    print("position id: ", eng_pos)
+    print("stable id:   ", eng_stb)
+    base = "package VehicleModel { part def Engine; }"
+    edited = "package VehicleModel { part def Dummy; part def Engine; }"
+    eng_before = next(e["@id"] for e in
+                      to_interchange(base, stable_ids=True)["@graph"]
+                      if e.get("declaredName") == "Engine")
+    eng_after = next(e["@id"] for e in
+                     to_interchange(edited, stable_ids=True)["@graph"]
+                     if e.get("declaredName") == "Engine")
+    print("after inserting an unrelated sibling BEFORE Engine —")
+    print("  position ids: id", "unchanged" if
+          next(e["@id"] for e in to_interchange(base)["@graph"]
+               if e.get("declaredName") == "Engine")
+          == next(e["@id"] for e in to_interchange(edited)["@graph"]
+                  if e.get("declaredName") == "Engine") else "SHIFTED")
+    print("  stable ids:   id", "unchanged" if eng_before == eng_after
+          else "SHIFTED")
+    print("\nCLI: sysmlpy export model.sysml --stable-ids")
+    print("scope + L3 options: docs/stable-identities.md")
+
 
 if __name__ == "__main__":
     main()

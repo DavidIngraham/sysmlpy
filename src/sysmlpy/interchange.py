@@ -108,33 +108,157 @@ def _child_id(parent_id: str, key: str, index: int) -> str:
     )
 
 
+# ---------------------------------------------------------------------------
+# stable (content-addressed) identifiers — L2 idempotency
+# ---------------------------------------------------------------------------
+
+#: UUID namespace for content-addressed ``stable_ids=True`` identifiers
+#: (distinct from :data:`INTERCHANGE_NAMESPACE` so the two schemes never
+#: collide even in theory).
+STABLE_NAMESPACE = _uuid.uuid5(
+    _uuid.NAMESPACE_URL,
+    "https://github.com/mycr0ft/sysmlpy/interchange/stable-ids",
+)
+
+
+def _identification_of(node: dict):
+    """The ``Identification`` node declared *by* this element, if any.
+
+    The parser models names as ``Identification`` dicts nested under
+    ``declaration``/``definition`` nodes; usages nest theirs under
+    ``declaration.declaration.identification``.  A recursive search
+    finds any shape without hard-coding the path — but it must not
+    descend through the containment edges (``ownedRelatedElement``,
+    ``body``): a wrapper (``PackageMember``, ``DefinitionElement``…)
+    merely *contains* named elements and must not claim their names.
+    Descending into them would let the root claim every name in the
+    model, corrupting every identity path.
+    """
+    if not isinstance(node, dict):
+        return None
+    if node.get("name") == "Identification":
+        return node
+    for k, v in node.items():
+        if k in ("ownedRelatedElement", "body"):
+            continue  # containment edges: names below belong to children
+        if isinstance(v, list):
+            for item in v:
+                found = _identification_of(item)
+                if found is not None:
+                    return found
+        elif isinstance(v, dict):
+            found = _identification_of(v)
+            if found is not None:
+                return found
+    return None
+
+
+class _StableIdAssigner:
+    """Content-addressed ``@id`` assignment over the visitor-dict tree.
+
+    An element's id hashes its *identity path*: the chain of declared
+    names from the root down to the nearest declared ancestor, plus the
+    element's own declared name (if any) and ``@type``.  Concretely:
+
+    - Named element: ``uuid5(STABLE_NAMESPACE, qn + "|" + type)``
+      where ``qn`` is the dot-joined declared names of the element and
+      all its declared ancestors (e.g. ``P.Engine.power``).
+    - Unnamed element below a declared ancestor: hashes the anchor QN,
+      the structural path from that ancestor (dictionary keys +
+      sibling indexes), and the ``@type`` — so it moves only if the
+      structure *between* it and its named anchor changes, never when
+      unrelated siblings elsewhere shift indexes.
+    - Root: hashes the tree path under the fixed ``"root"`` anchor.
+
+    Same-name sibling collisions (two ``part def Engine`` under one
+    parent) share a base hash; the occurrence index among content-key
+    siblings is appended so ids stay unique.  Elements in a collision
+    group shift when a group sibling is inserted before them — the
+    documented degradation for L2 (see docs/stable-identities.md).
+    """
+
+    def __init__(self):
+        #: base content-key -> next occurrence index
+        self._occurrence: dict = {}
+        #: node id() -> assigned @id (each dict node is visited once)
+        self._assigned: dict = {}
+
+    def id_for(self, node: dict, qn_path: tuple, struct_path: tuple) -> str:
+        ident = _identification_of(node) if isinstance(node, dict) else None
+        own_name = (ident or {}).get("declaredName")
+        type_name = node.get("name") if isinstance(node, dict) else None
+        if own_name:
+            qn = "|".join(qn_path + (own_name,))
+            key = f"{qn}|{type_name}"
+        else:
+            key = "root" if not qn_path and not struct_path else (
+                "|".join(qn_path) + "||" + _struct_text(struct_path)
+                + f"|{type_name}"
+            )
+        n = self._occurrence.get(key, 0)
+        self._occurrence[key] = n + 1
+        if n:
+            key = f"{key}|#{n}"
+        return "sysml:" + str(_uuid.uuid5(STABLE_NAMESPACE, key))
+
+
+def _struct_text(struct_path: tuple) -> str:
+    return ">".join(f"{key}:{i}" for key, i in struct_path)
+
+
 def _flatten(node: dict, parent_id: str, key: str, index: int,
-             graph: list) -> str:
+             graph: list, assigner: "_StableIdAssigner | None" = None,
+             parent_qn: tuple = (), parent_struct: tuple = ()) -> str:
     """Recursively flatten a visitor-dict node into the graph.
+
+    With ``assigner=None`` (default) ids are position-derived
+    (``_child_id``).  With an :class:`_StableIdAssigner`, ids are
+    content-addressed: named elements hash their qualified-name path,
+    unnamed elements hash the nearest named anchor plus the structural
+    path from it — see :class:`_StableIdAssigner`.
 
     Returns the ``@id`` assigned to this node.
     """
-    elem_id = _child_id(parent_id, key, index)
+    if assigner is not None:
+        struct_path = parent_struct + ((key, index),)
+        elem_id = assigner.id_for(node, parent_qn, struct_path)
+        ident = _identification_of(node)
+        own_name = (ident or {}).get("declaredName")
+        child_qn = parent_qn + ((own_name,) if own_name else ())
+        child_struct = struct_path
+    else:
+        elem_id = _child_id(parent_id, key, index)
+        child_qn = ()
+        child_struct = ()
     elem = {"@id": elem_id, "@type": node.get("name")}
     for k, v in node.items():
         if k == "name":
             continue  # captured as @type
-        elem[k] = _flatten_value(v, elem_id, k, graph)
+        elem[k] = _flatten_value(v, elem_id, k, graph,
+                                 assigner=assigner, parent_qn=child_qn,
+                                 parent_struct=child_struct)
     graph.append(elem)
     return elem_id
 
 
-def _flatten_value(v, elem_id: str, key: str, graph: list):
+def _flatten_value(v, elem_id: str, key: str, graph: list,
+                   assigner: "_StableIdAssigner | None" = None,
+                   parent_qn: tuple = (), parent_struct: tuple = ()):
     """Flatten one property value: dicts become @id refs, scalars inline."""
     if v is None or isinstance(v, (str, int, float, bool)):
         return v
     if isinstance(v, dict):
-        return {"@id": _flatten(v, elem_id, key, 0, graph)}
+        return {"@id": _flatten(v, elem_id, key, 0, graph,
+                                assigner=assigner, parent_qn=parent_qn,
+                                parent_struct=parent_struct)}
     if isinstance(v, list):
         out = []
         for i, item in enumerate(v):
             if isinstance(item, dict):
-                out.append({"@id": _flatten(item, elem_id, key, i, graph)})
+                out.append({"@id": _flatten(item, elem_id, key, i, graph,
+                                            assigner=assigner,
+                                            parent_qn=parent_qn,
+                                            parent_struct=parent_struct)})
             else:
                 out.append(item)
         return out
@@ -230,7 +354,8 @@ def _extract_properties(source):
     return props, types
 
 
-def to_interchange(source, *, vocabulary=None, explicit_terms=False):
+def to_interchange(source, *, vocabulary=None, explicit_terms=False,
+                   stable_ids=False):
     """Export a model to the SysML v2 JSON interchange representation.
 
     Parameters
@@ -246,6 +371,18 @@ def to_interchange(source, *, vocabulary=None, explicit_terms=False):
         ``property → <vocabulary>#property`` term definitions for
         every property and metaclass in the document (see
         :func:`build_jsonld_context`).
+    stable_ids : bool
+        When true, ``@id``s are **content-addressed** (L2 idempotency):
+        named elements hash their qualified-name path and ``@type``,
+        unnamed elements hash the nearest named ancestor plus the
+        structural path from it.  Inserting or reordering unrelated
+        siblings elsewhere in the document then leaves every
+        untouched element's id unchanged — with the default
+        position-derived ids those ids all shift.  Same-name sibling
+        groups (two ``part def Engine`` under one parent) are
+        disambiguated by occurrence index; ids inside such a group do
+        shift on group-local insertion.  See
+        ``docs/stable-identities.md`` for the full analysis.
 
     Returns
     -------
@@ -285,7 +422,9 @@ def to_interchange(source, *, vocabulary=None, explicit_terms=False):
         )
 
     graph: list = []
-    root_id = _flatten(root_dict, "root", "ownedRelationship", 0, graph)
+    assigner = _StableIdAssigner() if stable_ids else None
+    root_id = _flatten(root_dict, "root", "ownedRelationship", 0, graph,
+                       assigner=assigner)
     context = dict(INTERCHANGE_CONTEXT)
     if vocabulary:
         context["@vocab"] = vocabulary.rstrip("/#") + "#"

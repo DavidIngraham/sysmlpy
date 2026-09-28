@@ -93,22 +93,47 @@ on `P::Sub::Engine`. Often sufficient; cheapest.
 
 ## 4. Recommended scope
 
-Phase 1 (L2, ~1-2 sessions):
-1. `interchange.py`: `to_interchange(..., stable_ids=False)` — when
-   True, id = uuid5(NAMESPACE, resolved-QN + "|" + @type +
-   optional "|#" + occurrence); resolver run via `semantic` (errors
-   fall back to position ids for anonymous/unresolved elements).
-2. Anonymous elements keep uuid4-style content keys (they *have* no
-   QN) — document that anonymous identity is per-parse by nature.
-3. Tests: L1 byte-identity still holds; L2 scenario table from §1 as
-   parametrized cases; collision group behaves per A.
-4. `store.py` consumers get id-preserving upsert: `put` with the same
-   stable id updates in place (already keyed this way — verify with
-   kuzu/networkx backends).
+Phase 1 (L2) — **IMPLEMENTED (v0.96.3)**:
+
+1. ✅ `interchange.py`: `to_interchange(..., stable_ids=False)` — when
+   True, ids are uuid5 over the **declared** qualified-name path
+   (syntax-derived, no resolver: `P.Engine.power` style chains of
+   `Identification.declaredName` from root) + `@type`; anonymous /
+   unresolved elements hash the nearest named anchor plus the
+   structural path from it (option-A resolved-QN variant deliberately
+   deferred — declared path keeps export resolver-free and
+   machine-independent).
+2. ✅ Anonymous elements keep anchor-relative keys — documented that
+   anonymous identity follows the nearest declared ancestor.
+3. ✅ Tests (`tests/interchange_test.py::TestStableIds`): L1
+   byte-identity, the §1 edit matrix as parametrized cases
+   (sibling before/after, inner-feature insertion), ancestor-rename
+   and re-nesting identity-follows-content semantics, collision-group
+   uniqueness, graph-wide uniqueness on the rich model, round trip,
+   and default-path invariance (`stable_ids=False` byte-identical to
+   the v0.63.0 behaviour).
+4. ✅ `store.py` upsert verified on the memory backend: same stable id
+   updates the stored element in place (stores are UUID-keyed by
+   design).  networkx/kuzu/cayley backends are optional-dependency
+   gated in this environment (their test failures are pre-existing,
+   unrelated to ids).
+5. ✅ CLI: `sysmlpy export --stable-ids`.
 
 Phase 2 (L3, opt-in): doc-comment `@id:` convention (option C) layered
 on Phase 1; exporter/importer round-trip the explicit id and never
 re-mint over it.
+
+### Design decision recorded: declared-path, not resolved-QN
+
+Option A as scoped mentioned hashing the *resolved* qualified name via
+`semantic.py`.  Implementation uses the **declared** path instead
+(chain of `Identification.declaredName` from root): resolution depends
+on library availability and import resolution, which would make ids
+machine-dependent — defeating idempotency.  Consequence: ids follow
+declared identity, so renaming an ancestor re-mints descendant ids
+(verified in `test_qn_follows_declared_identity`).  The position scheme
+accidentally survived ancestor renames; the content scheme intentionally
+does not.  Trade-off documented here rather than hidden.
 
 ## 5. Risks / open questions
 
