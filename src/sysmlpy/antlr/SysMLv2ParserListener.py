@@ -17,123 +17,6 @@ class SysMLv2ParserListener(ParseTreeListener):
         pass
 
 
-    # Enter a parse tree produced by SysMLv2Parser#nullCoalescingExpression.
-    def enterNullCoalescingExpression(self, ctx:SysMLv2Parser.NullCoalescingExpressionContext):
-        pass
-
-    # Exit a parse tree produced by SysMLv2Parser#nullCoalescingExpression.
-    def exitNullCoalescingExpression(self, ctx:SysMLv2Parser.NullCoalescingExpressionContext):
-        pass
-
-
-    # Enter a parse tree produced by SysMLv2Parser#impliesExpression.
-    def enterImpliesExpression(self, ctx:SysMLv2Parser.ImpliesExpressionContext):
-        pass
-
-    # Exit a parse tree produced by SysMLv2Parser#impliesExpression.
-    def exitImpliesExpression(self, ctx:SysMLv2Parser.ImpliesExpressionContext):
-        pass
-
-
-    # Enter a parse tree produced by SysMLv2Parser#orExpression.
-    def enterOrExpression(self, ctx:SysMLv2Parser.OrExpressionContext):
-        pass
-
-    # Exit a parse tree produced by SysMLv2Parser#orExpression.
-    def exitOrExpression(self, ctx:SysMLv2Parser.OrExpressionContext):
-        pass
-
-
-    # Enter a parse tree produced by SysMLv2Parser#xorExpression.
-    def enterXorExpression(self, ctx:SysMLv2Parser.XorExpressionContext):
-        pass
-
-    # Exit a parse tree produced by SysMLv2Parser#xorExpression.
-    def exitXorExpression(self, ctx:SysMLv2Parser.XorExpressionContext):
-        pass
-
-
-    # Enter a parse tree produced by SysMLv2Parser#andExpression.
-    def enterAndExpression(self, ctx:SysMLv2Parser.AndExpressionContext):
-        pass
-
-    # Exit a parse tree produced by SysMLv2Parser#andExpression.
-    def exitAndExpression(self, ctx:SysMLv2Parser.AndExpressionContext):
-        pass
-
-
-    # Enter a parse tree produced by SysMLv2Parser#equalityExpression.
-    def enterEqualityExpression(self, ctx:SysMLv2Parser.EqualityExpressionContext):
-        pass
-
-    # Exit a parse tree produced by SysMLv2Parser#equalityExpression.
-    def exitEqualityExpression(self, ctx:SysMLv2Parser.EqualityExpressionContext):
-        pass
-
-
-    # Enter a parse tree produced by SysMLv2Parser#relationalExpression.
-    def enterRelationalExpression(self, ctx:SysMLv2Parser.RelationalExpressionContext):
-        pass
-
-    # Exit a parse tree produced by SysMLv2Parser#relationalExpression.
-    def exitRelationalExpression(self, ctx:SysMLv2Parser.RelationalExpressionContext):
-        pass
-
-
-    # Enter a parse tree produced by SysMLv2Parser#rangeExpression.
-    def enterRangeExpression(self, ctx:SysMLv2Parser.RangeExpressionContext):
-        pass
-
-    # Exit a parse tree produced by SysMLv2Parser#rangeExpression.
-    def exitRangeExpression(self, ctx:SysMLv2Parser.RangeExpressionContext):
-        pass
-
-
-    # Enter a parse tree produced by SysMLv2Parser#additiveExpression.
-    def enterAdditiveExpression(self, ctx:SysMLv2Parser.AdditiveExpressionContext):
-        pass
-
-    # Exit a parse tree produced by SysMLv2Parser#additiveExpression.
-    def exitAdditiveExpression(self, ctx:SysMLv2Parser.AdditiveExpressionContext):
-        pass
-
-
-    # Enter a parse tree produced by SysMLv2Parser#multiplicativeExpression.
-    def enterMultiplicativeExpression(self, ctx:SysMLv2Parser.MultiplicativeExpressionContext):
-        pass
-
-    # Exit a parse tree produced by SysMLv2Parser#multiplicativeExpression.
-    def exitMultiplicativeExpression(self, ctx:SysMLv2Parser.MultiplicativeExpressionContext):
-        pass
-
-
-    # Enter a parse tree produced by SysMLv2Parser#exponentiationExpression.
-    def enterExponentiationExpression(self, ctx:SysMLv2Parser.ExponentiationExpressionContext):
-        pass
-
-    # Exit a parse tree produced by SysMLv2Parser#exponentiationExpression.
-    def exitExponentiationExpression(self, ctx:SysMLv2Parser.ExponentiationExpressionContext):
-        pass
-
-
-    # Enter a parse tree produced by SysMLv2Parser#classificationExpression.
-    def enterClassificationExpression(self, ctx:SysMLv2Parser.ClassificationExpressionContext):
-        pass
-
-    # Exit a parse tree produced by SysMLv2Parser#classificationExpression.
-    def exitClassificationExpression(self, ctx:SysMLv2Parser.ClassificationExpressionContext):
-        pass
-
-
-    # Enter a parse tree produced by SysMLv2Parser#unaryExpression.
-    def enterUnaryExpression(self, ctx:SysMLv2Parser.UnaryExpressionContext):
-        pass
-
-    # Exit a parse tree produced by SysMLv2Parser#unaryExpression.
-    def exitUnaryExpression(self, ctx:SysMLv2Parser.UnaryExpressionContext):
-        pass
-
-
     # Enter a parse tree produced by SysMLv2Parser#primaryExpression.
     def enterPrimaryExpression(self, ctx:SysMLv2Parser.PrimaryExpressionContext):
         pass
@@ -536,15 +419,6 @@ class SysMLv2ParserListener(ParseTreeListener):
 
     # Exit a parse tree produced by SysMLv2Parser#qualifiedName.
     def exitQualifiedName(self, ctx:SysMLv2Parser.QualifiedNameContext):
-        pass
-
-
-    # Enter a parse tree produced by SysMLv2Parser#qualifiedIdentification.
-    def enterQualifiedIdentification(self, ctx:SysMLv2Parser.QualifiedIdentificationContext):
-        pass
-
-    # Exit a parse tree produced by SysMLv2Parser#qualifiedIdentification.
-    def exitQualifiedIdentification(self, ctx:SysMLv2Parser.QualifiedIdentificationContext):
         pass
 
 

@@ -5230,13 +5230,19 @@ def _visit_connector_end(ctx):
                 }]
             })
     
-    # Optional ownedMultiplicity
-    if hasattr(ctx, 'ownedMultiplicity') and ctx.ownedMultiplicity():
-        om_ctx = ctx.ownedMultiplicity()
-        mult_dict = _extract_multiplicity_from_ctx(om_ctx)
-        if mult_dict:
-            owned_rel.append(mult_dict)
-    
+    # Cross-multiplicity BEFORE the declared name (normative production):
+    #   connectorEnd : (ownedCrossMultiplicityMember)?
+    #                  (name (COLON_COLON_GT | REFERENCES))? ownedReferenceSubsetting ;
+    # e.g. 'connect [0..1] a to [1] b;'
+    if hasattr(ctx, 'ownedCrossMultiplicityMember') and ctx.ownedCrossMultiplicityMember():
+        ocmm = ctx.ownedCrossMultiplicityMember()
+        if isinstance(ocmm, list):
+            ocmm = ocmm[0] if ocmm else None
+        if ocmm:
+            mult_dict = _visit_multiplicity(ocmm)
+            if mult_dict:
+                owned_rel.append(mult_dict)
+
     return {
         "name": "ConnectorEnd",
         "declaredName": declared_name,
@@ -11135,6 +11141,19 @@ def _build_connector_end_member_dict(cem_ctx):
         declared_name = ce_ctx.name().getText()
     
     relationships = []
+    # Cross-multiplicity comes BEFORE the declared name per the normative
+    # ConnectorEnd production:
+    #   connectorEnd : (ownedCrossMultiplicityMember)?
+    #                  (name (COLON_COLON_GT | REFERENCES))? ownedReferenceSubsetting ;
+    # e.g. 'connect [0..1] lugBoltJoints to [1] wheel.w.mountingHoles;'
+    if hasattr(ce_ctx, 'ownedCrossMultiplicityMember') and ce_ctx.ownedCrossMultiplicityMember():
+        ocmm = ce_ctx.ownedCrossMultiplicityMember()
+        if isinstance(ocmm, list):
+            ocmm = ocmm[0] if ocmm else None
+        if ocmm:
+            mult_dict = _visit_multiplicity(ocmm)
+            if mult_dict:
+                relationships.append(mult_dict)
     if hasattr(ce_ctx, 'ownedReferenceSubsetting') and ce_ctx.ownedReferenceSubsetting():
         ors = _build_owned_reference_subsetting_dict(ce_ctx.ownedReferenceSubsetting())
         if ors:
@@ -11325,8 +11344,10 @@ _PRECEDENCE_RANK = {
 _OPERATOR_TO_LAYER = {
     "implies": "ImpliesExpression",
     "or": "OrExpression",
+    "|": "OrExpression",
     "xor": "XorExpression",
     "and": "AndExpression",
+    "&": "AndExpression",
     "==": "EqualityExpression",
     "!=": "EqualityExpression",
     "===": "EqualityExpression",
@@ -11425,8 +11446,11 @@ def _splice_operator(lhs_chain, layer_name, op_text, rhs_chain):
             {"name": "RelationalOperand", "operator": op_text, "operand": rhs_unwrapped}
         ]
     elif layer_name == "RangeExpression":
+        # RangeExpression.dump() hardcodes the '..' operator and renders
+        # it whenever the operand slot is populated; storing a string
+        # operator here would only confuse tests expecting the ladder
+        # emitter's shape (no operator field).
         node["operand"] = rhs_unwrapped
-        node["operator"] = op_text
     elif layer_name == "AdditiveExpression":
         existing = node.get("operation", [])
         node["operation"] = existing + [
@@ -11449,9 +11473,22 @@ def _splice_operator(lhs_chain, layer_name, op_text, rhs_chain):
         existing_op.append(rhs_unwrapped)
         node["operand"] = existing_op
     elif layer_name == "AndExpression":
+        if op_text == "&":
+            operand = rhs_unwrapped
+        else:
+            # 'and' keyword form: AndExpression.dump() expects the
+            # EqualityExpressionReference membership wrapper (matches
+            # the ladder emitter's AndOperand shape).
+            operand = {
+                "name": "EqualityExpressionReference",
+                "ownedRelationship": {
+                    "name": "EqualityExpressionMember",
+                    "ownedRelatedElement": rhs_unwrapped,
+                },
+            }
         existing = node.get("operation", [])
         node["operation"] = existing + [
-            {"name": "AndOperand", "operator": op_text, "operand": rhs_unwrapped}
+            {"name": "AndOperand", "operator": op_text, "operand": operand}
         ]
     elif layer_name == "OrExpression":
         existing = node.get("operator", [])
@@ -12070,11 +12107,21 @@ def _chain_has_binary_operator(node):
 
 def _base_feature_names(be_ctx):
     """Return the qualified-name parts of a baseExpression that is a
-    plain feature reference, or None for any other base form."""
+    plain feature reference, or None for any other base form.
+
+    The flat-grammar baseExpression has multiple qualifiedName-leading
+    alternatives, so be_ctx.qualifiedName() returns a list -- take the
+    first context.
+    """
     if be_ctx is None:
         return None
     if hasattr(be_ctx, "qualifiedName") and be_ctx.qualifiedName():
-        return _extract_qualified_name_parts(be_ctx.qualifiedName())
+        qn = be_ctx.qualifiedName()
+        if isinstance(qn, list):
+            qn = qn[0] if qn else None
+        if qn is None:
+            return None
+        return _extract_qualified_name_parts(qn)
     return None
 
 
@@ -12109,9 +12156,34 @@ def _emit_primary_level(ctx):
             return _build_invocation_primary(names, suffix_terms[0][1])
         return None
 
-    # One or more `DOT qualifiedName` suffixes: feature chain (a.b.c)
+    # `DOT featureChainMember` suffix (flat 2026-08 grammar shape) or one
+    # or more `DOT qualifiedName` suffixes: feature chain (a.b.c).
+    # The featureChainMember rule wraps a QualifiedName (or nested chain),
+    # so unwrap it to get the same QualifiedNameContext sequence.
+    def _qn_parts_of(v):
+        if type(v).__name__ == "QualifiedNameContext":
+            return _extract_qualified_name_parts(v)
+        if type(v).__name__ == "FeatureChainMemberContext":
+            # featureChainMember : qualifiedName ( DOT qualifiedName )*
+            # -- a multi-segment suffix (a.b.c) is ONE context with a
+            # list of QualifiedNameContexts; each segment is a step.
+            qn_list = v.qualifiedName() if hasattr(v, "qualifiedName") else None
+            if not qn_list:
+                return None
+            if not isinstance(qn_list, list):
+                qn_list = [qn_list]
+            steps: list[str] = []
+            for qn in qn_list:
+                parts = _extract_qualified_name_parts(qn)
+                if not parts:
+                    return None
+                steps.extend(parts)
+            return steps
+        return None
+
     if suffix_terms and all(
-        (k == "term" and v == ".") if k == "term" else type(v).__name__ == "QualifiedNameContext"
+        (k == "term" and v == ".") if k == "term"
+        else _qn_parts_of(v)
         for k, v in suffix_terms
     ) and len(suffix_terms) % 2 == 0:
         names = _base_feature_names(be_ctx)
@@ -12119,7 +12191,7 @@ def _emit_primary_level(ctx):
         ok = True
         for k, v in suffix_terms:
             if k == "ctx":
-                parts = _extract_qualified_name_parts(v)
+                parts = _qn_parts_of(v)
                 if not parts:
                     ok = False
                     break
@@ -12217,27 +12289,22 @@ def _emit_base_primary(be_ctx):
 
 def _emit_structured_expression(oe_ctx):
     """Emit a structured OwnedExpression chain dict for an ANTLR
-    ownedExpression context by walking the per-precedence grammar
-    cascade directly.
+    ownedExpression context of the flat left-recursive rule.
 
-    The vendored grammar uses one rule per precedence level
-    (nullCoalescingExpression -> impliesExpression -> ... ->
-    exponentiationExpression -> unaryExpression -> primaryExpression),
-    matching the OMG XText reference grammar, so the parse tree already
-    encodes the correct operator structure -- no precedence climbing is
-    needed.
+    The upstream 2026-08 grammar (daltskin/sysml-v2-grammar main, post
+    #11) lists every binary operator in ONE left-recursive
+    ownedExpression rule with correct precedence and associativity.
+    ANTLR transforms the left recursion into a left-spine parse tree
+    ('a + b * c == 0' nests 'b * c' inside the additive operand), so no
+    precedence climbing is needed: this emitter walks the spine and
+    splices each operator into the layered chain shape via
+    _splice_operator (the v0.52.0 flat-grammar machinery, revived).
 
     Returns a full OwnedExpression chain dict, or None when the
     expression uses a form the chain shape cannot represent (ternary
-    'if/else', logical and/or/xor/implies chains, postfix
-    classification operators, '**', feature-access suffixes other than
-    a plain 'DOT qualifiedName' chain, ...). Callers fall back to text
-    preservation for those (documented limitation).
-
-    Legacy note: v0.52.0 implemented a precedence-climbing rearrangement
-    pass on top of the old flat ownedExpression rule. The per-precedence
-    grammar (regenerated from the fixed generator) made that obsolete;
-    the old helpers are retained but unused.
+    'if/else', '??', prefix classification, 'all' extents, postfix
+    classification operators, 'meta' primaries, ...). Callers fall
+    back to text preservation for those (documented limitation).
     """
     if oe_ctx is None:
         return None
@@ -12248,24 +12315,75 @@ def _emit_structured_expression(oe_ctx):
     if hasattr(oe_ctx, "IF") and oe_ctx.IF():
         return None
 
-    nce_ctx = (
-        oe_ctx.nullCoalescingExpression()
-        if hasattr(oe_ctx, "nullCoalescingExpression")
-        else None
-    )
-    if nce_ctx is None:
+    children = list(oe_ctx.getChildren()) if hasattr(oe_ctx, "getChildren") else []
+    kinds = [type(c).__name__ for c in children]
+
+    # Simple primary: the whole expression is one PrimaryExpression
+    if kinds == ["PrimaryExpressionContext"]:
+        primary = _emit_primary_level(children[0])
+        if primary is None:
+            return None
+        return _wrap_expression_layers(primary)
+
+    # Unary prefix: ( PLUS | MINUS | TILDE | NOT ) ownedExpression
+    if (
+        len(children) == 2
+        and kinds[0] == "TerminalNodeImpl"
+        and children[0].getText().strip() in ("+", "-", "~", "not")
+        and kinds[1] == "OwnedExpressionContext"
+    ):
+        operand_chain = _emit_structured_expression(children[1])
+        if operand_chain is None:
+            return None
+        # Nested unary prefixes would overwrite the single unary layer's
+        # operator field -- keep them as text.
+        unary_node = _walk_chain(operand_chain, _UNARY_LAYER_PATH)
+        if isinstance(unary_node, dict) and unary_node.get("operator"):
+            return None
+        return _emit_unary_chain(operand_chain, children[0].getText().strip())
+
+    # Prefix classification/'all' extent: op TypeReference with no
+    # operand ('istype T', 'as T', '@ T', '@@ T', 'all T') -- the chain
+    # shape has no operand slot for these -> text fallback
+    if kinds and kinds[0] == "TerminalNodeImpl" and children[0].getText().strip() in (
+        "all",
+        "istype",
+        "hastype",
+        "as",
+        "@",
+        "@@",
+        "meta",
+    ):
         return None
-    nce_dict = _emit_null_coalescing_level(nce_ctx)
-    if nce_dict is None:
+
+    # Postfix classification/cast: OwnedExpression op TypeReference --
+    # the ClassificationExpression layer does not round-trip these
+    # operators -> text fallback
+    if kinds == ["OwnedExpressionContext", "TerminalNodeImpl", "TypeReferenceContext"]:
         return None
-    return {
-        "name": "OwnedExpression",
-        "expression": {
-            "name": "ConditionalExpression",
-            "operator": [],
-            "operand": [nce_dict],
-        },
-    }
+
+    # Binary: OwnedExpression op OwnedExpression -- splice at the
+    # operator's layer (left-spine: lhs already holds lower-precedence
+    # structure, rhs recurses independently)
+    if (
+        len(children) == 3
+        and kinds[0] == "OwnedExpressionContext"
+        and kinds[1] == "TerminalNodeImpl"
+        and kinds[2] == "OwnedExpressionContext"
+    ):
+        op_text = children[1].getText().strip()
+        layer = _OPERATOR_TO_LAYER.get(op_text)
+        if layer is None:
+            return None  # '??' and other undumped operators -> text
+        lhs_chain = _emit_structured_expression(children[0])
+        if lhs_chain is None:
+            return None
+        rhs_chain = _emit_structured_expression(children[2])
+        if rhs_chain is None:
+            return None
+        return _splice_operator(lhs_chain, layer, op_text, rhs_chain)
+
+    return None
 
 
 
@@ -12365,6 +12483,14 @@ _LAYER_PATHS = {
     "AdditiveExpression": ["expression", "operand", 0, "implies", "or", "xor", "and", "equality", "classification", "relational", "range", "additive"],
     "MultiplicativeExpression": ["expression", "operand", 0, "implies", "or", "xor", "and", "equality", "classification", "relational", "range", "additive", "multiplicitive"],
 }
+
+# Path to the UnaryExpression layer inside a wrapped chain (used by
+# _emit_unary_chain and the flat-grammar unary-prefix splice above).
+_UNARY_LAYER_PATH = [
+    "expression", "operand", 0, "implies", "or", "xor", "and", "equality",
+    "classification", "relational", "range", "additive", "multiplicitive",
+    "exponential", "unary",
+]
 
 
 def _fallback_to_text(oe_ctx):

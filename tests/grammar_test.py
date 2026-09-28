@@ -469,9 +469,9 @@ def test_Training_Connections_Connections_Example():
     		part hub : Hub[1] {
     			part h : LugBoltThreadableHole[5];
     		}
-    		connect lugBoltJoints[0..1] to wheel.w.mountingHoles[1];
-    		connect lugBoltJoints[0..1] to hub.h[1];
-    	}
+    				connect [0..1] lugBoltJoints to [1] wheel.w.mountingHoles;
+    				connect [0..1] lugBoltJoints to [1] hub.h;
+    			}
 
     }"""
     a = loads(text)
@@ -2437,10 +2437,18 @@ def test_render_multiplicity_in_view_roundtrip():
 
 
 def test_subject_qualified_name_roundtrip():
-    """subject with qualified name in requirement def body round-trips."""
+    """subject with a qualified type name round-trips.
+
+    The OMG grammar's Identification admits only a shortname/name pair --
+    a qualified name reaches a subject usage through the typed-by form
+    ('subject : Qualified::Name;'), per Usage = UsageDeclaration
+    FeatureSpecializationPart? (KerML/SysML KEBNF, 2026-08 release; the
+    earlier bare 'subject Qualified::Name;' form relied on the
+    non-normative qualifiedIdentification patch, withdrawn upstream).
+    """
     text = """package P {
     requirement def REQ {
-        subject SystemGateway::System_Driver;
+        subject : SystemGateway::System_Driver;
     }
 }"""
     a = loads(text)
@@ -3872,7 +3880,7 @@ def test_bare_connect_dump_canonical():
         part def C;
         part c1 : C[0..1];
         part c2 : C[1];
-        connect c1[0..1] to c2[1];
+        connect [0..1] c1 to [1] c2;
     }"""
     a = model_loads(text)
     b = classtree(a)

@@ -14,71 +14,6 @@ class SysMLv2ParserVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by SysMLv2Parser#nullCoalescingExpression.
-    def visitNullCoalescingExpression(self, ctx:SysMLv2Parser.NullCoalescingExpressionContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by SysMLv2Parser#impliesExpression.
-    def visitImpliesExpression(self, ctx:SysMLv2Parser.ImpliesExpressionContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by SysMLv2Parser#orExpression.
-    def visitOrExpression(self, ctx:SysMLv2Parser.OrExpressionContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by SysMLv2Parser#xorExpression.
-    def visitXorExpression(self, ctx:SysMLv2Parser.XorExpressionContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by SysMLv2Parser#andExpression.
-    def visitAndExpression(self, ctx:SysMLv2Parser.AndExpressionContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by SysMLv2Parser#equalityExpression.
-    def visitEqualityExpression(self, ctx:SysMLv2Parser.EqualityExpressionContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by SysMLv2Parser#relationalExpression.
-    def visitRelationalExpression(self, ctx:SysMLv2Parser.RelationalExpressionContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by SysMLv2Parser#rangeExpression.
-    def visitRangeExpression(self, ctx:SysMLv2Parser.RangeExpressionContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by SysMLv2Parser#additiveExpression.
-    def visitAdditiveExpression(self, ctx:SysMLv2Parser.AdditiveExpressionContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by SysMLv2Parser#multiplicativeExpression.
-    def visitMultiplicativeExpression(self, ctx:SysMLv2Parser.MultiplicativeExpressionContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by SysMLv2Parser#exponentiationExpression.
-    def visitExponentiationExpression(self, ctx:SysMLv2Parser.ExponentiationExpressionContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by SysMLv2Parser#classificationExpression.
-    def visitClassificationExpression(self, ctx:SysMLv2Parser.ClassificationExpressionContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by SysMLv2Parser#unaryExpression.
-    def visitUnaryExpression(self, ctx:SysMLv2Parser.UnaryExpressionContext):
-        return self.visitChildren(ctx)
-
-
     # Visit a parse tree produced by SysMLv2Parser#primaryExpression.
     def visitPrimaryExpression(self, ctx:SysMLv2Parser.PrimaryExpressionContext):
         return self.visitChildren(ctx)
@@ -301,11 +236,6 @@ class SysMLv2ParserVisitor(ParseTreeVisitor):
 
     # Visit a parse tree produced by SysMLv2Parser#qualifiedName.
     def visitQualifiedName(self, ctx:SysMLv2Parser.QualifiedNameContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by SysMLv2Parser#qualifiedIdentification.
-    def visitQualifiedIdentification(self, ctx:SysMLv2Parser.QualifiedIdentificationContext):
         return self.visitChildren(ctx)
 
 

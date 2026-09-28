@@ -7906,20 +7906,30 @@ class ConnectorEnd:
             if definition["declaredName"] is not None:
                 self.declaredName = definition["declaredName"]
 
+            self.cross_multiplicity = None
             self.children = []
             for relationship in definition["ownedRelationship"]:
                 if relationship["name"] == "OwnedReferenceSubsetting":
                     self.children.append(OwnedReferenceSubsetting(relationship))
                 else:
-                    self.children.append(OwnedMultiplicity(relationship))
+                    # OwnedCrossMultiplicity → OwnedMultiplicity; normative
+                    # ConnectorEnd puts it BEFORE the declared name:
+                    # 'connect [0..1] lugBoltJoints to ...'
+                    mult = OwnedMultiplicity(relationship)
+                    self.cross_multiplicity = mult
+                    self.children.append(mult)
 
     def dump(self):
         output = []
+        if self.cross_multiplicity is not None:
+            output.append(self.cross_multiplicity.dump())
         if self.declaredName is not None:
             output.append(self.declaredName)
             output.append("references")
 
         for child in self.children:
+            if child is self.cross_multiplicity:
+                continue
             output.append(child.dump())
 
         return " ".join(output)
