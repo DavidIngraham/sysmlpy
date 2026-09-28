@@ -39,6 +39,11 @@ support.
 - [LSP](LSP.md) — language server for editors
 - [LSP Editor Setup](LSP_EDITORS.md) — per-editor integration guides
 - [PlantUML Examples](plantuml-examples/) — rendered view gallery
+- [Stable Element Identities](stable-identities.md) — scoping for
+  idempotent interchange: parse uuid4 vs interchange uuid5 today, and
+  the L2/L3 options (content-addressed ids, source-carried ids) for
+  projects that need identity to survive edits and cross-document
+  matching
 
 ### Archive
 - [Archive](archive/README.md) — historical documents (PySysML2 comparison,

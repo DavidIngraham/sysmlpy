@@ -288,7 +288,9 @@ Notes for downstream tooling:
   match on declared names / resolved qualified names.
 - Full walkthrough: `examples/element_identity.py` — parses twice,
   shows the fresh uuid4 vs the stable `@id`s, and proves the round trip
-  preserves identity.
+  preserves identity. For projects needing ids that also survive
+  edits and cross-document matching, see
+  [Stable Element Identities](stable-identities.md) (scope + options).
 
 ### Requirement Traceability (v0.62.0 — Adoption Roadmap Goal 2)
 
