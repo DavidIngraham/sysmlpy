@@ -1,8 +1,21 @@
 # sysmlpy — Project Status
 
-Current version: **v0.96.2** (2026-09-28)
+Current version: **v0.96.3** (2026-09-28)
 
 ---
+
+## Recent Highlights (v0.96.3)
+
+- **Stable element identities (L2 + L3)**: content-addressed
+  interchange `@id`s (`to_interchange(stable_ids=True)`, CLI
+  `--stable-ids`) survive insertion/reordering elsewhere; a registry
+  sidecar (`reconcile_ids` / `--reconcile-with model.json`) keeps ids
+  across ancestor renames and re-nesting — re-export with the previous
+  file as registry and name-matched elements never lose identity.
+- Documented in full: `docs/stable-identities.md` (L0-L3 levels,
+  options, decisions); runnable demo `examples/element_identity.py`;
+  README "Element Identity: Stable Interchange IDs".
+- Gates: interchange 59/59, fast suite 654 passed / 1 skipped.
 
 ## Recent Highlights (v0.96.2)
 

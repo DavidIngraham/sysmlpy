@@ -2,7 +2,7 @@
 
 > **For:** Future agents and team members
 > **Last Updated:** September 28, 2026
-> **Current Version:** v0.96.2
+> **Current Version:** v0.96.3
 > **Repository:** https://github.com/mycr0ft/sysmlpy
 > **Roadmap:** the 10-goal Adoption Roadmap (docs/archive/DEVELOPMENT_PLAN.md,
 > now archived) is **complete** as of v0.77.0 — see CHANGELOG.md
@@ -286,8 +286,7 @@ Notes for downstream tooling:
   hashes differently.  For a given source text the ids are stable, which
   is what diff-friendly interchange needs; for cross-document matching,
   match on declared names / resolved qualified names.
-  **`stable_ids=True`** (unreleased; ships in the next version) switches
-  the exporter to
+  **`stable_ids=True`** (v0.96.3) switches the exporter to
   content-addressed ids: named elements hash their qualified-name path
   and type, so inserting/reordering unrelated elements elsewhere leaves
   untouched ids unchanged (L2 idempotency — CLI: `--stable-ids`).  See

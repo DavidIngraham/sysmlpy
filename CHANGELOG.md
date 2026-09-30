@@ -1,5 +1,36 @@
 # CHANGELOG
 
+## v0.96.3 (2026-09-28)
+
+- **Stable element identities across edits (L2 + L3 idempotency).**
+  - `to_interchange(stable_ids=True)` / CLI `sysmlpy export
+    --stable-ids`: content-addressed `@id`s — named elements hash
+    their declared qualified-name path + metaclass type, unnamed
+    elements hash the nearest named anchor + structural path.
+    Inserting/reordering unrelated elements elsewhere leaves
+    untouched ids unchanged.  Default (`stable_ids=False`) stays
+    byte-identical to the v0.63.0 position scheme.
+  - **`reconcile_ids(document, registry)`** / CLI
+    `sysmlpy export --reconcile-with model.json -o model.json`: the
+    previous export doubles as an id registry — name-matched
+    elements adopt registry ids, so ids survive ancestor renames and
+    re-nesting (injective (declaredName, @type) matching keeps
+    documents collision-free; nested `{"@id"}` refs are remapped so
+    reconciled documents import cleanly; the CLI one-liner is an
+    idempotent fixed point after the first export).
+- New public exports: `reconcile_ids`, `STABLE_NAMESPACE`.
+- New demo: `examples/element_identity.py` — all identity layers
+  (parse uuid4, position uuid5, content uuid5, registry reconciliation)
+  runnable end to end.
+- New docs: `docs/stable-identities.md` (idempotency levels L0-L3,
+  options analysis, design decision: declared-path not resolved-QN,
+  Phase 1 + Phase 2 implementation records); README section
+  "Element Identity: Stable Interchange IDs".
+- All gates green: interchange 59/59 (11 stable-id + 10 reconcile
+  tests), fast suite 654 passed/1 skipped.  (Grammar 168/168, XPect
+  conformance 123/3 optional-dep skips, KerML 5/5 — unchanged from
+  v0.96.2, untouched by this release.)
+
 ## v0.96.2 (2026-09-28)
 
 - **Grammar upgraded to OMG release 2026-08** — the vendored ANTLR4
