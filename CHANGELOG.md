@@ -1,5 +1,20 @@
 # CHANGELOG
 
+## v0.96.4 (2026-09-30)
+
+- **`doc_ids=True` on `to_interchange` (Phase 2b, L3 explicit
+  identity)** — `doc /* @id: … */` comments inside an element's own
+  braces fix its interchange `@id` (implies `stable_ids`): never
+  re-minted over, surviving any edit (ancestor renames, re-nesting,
+  cross-file moves) because the carrier rides the source text.
+  Duplicate claims of one id raise at export.  Placement contract
+  (inside braces vs sibling-level bubbling) pinned by tests; end-to-end
+  verified export → dump → re-parse → export.  Scope record:
+  `docs/stable-identities.md` §4 Phase 2b; demo:
+  `examples/element_identity.py` section 6.
+- **`reconcile_ids` / `to_interchange(reconcile_with=...)`** carry
+  forward from v0.96.3 (L3 registry reconciliation).
+
 ## v0.96.3 (2026-09-28)
 
 - **Stable element identities across edits (L2 + L3 idempotency).**
@@ -60,27 +75,8 @@
 
 ## Unreleased (on main)
 
-- **`doc_ids=True` on `to_interchange` (Phase 2b, L3 explicit
-  identity)** — `doc /* @id: … */` comments inside an element's own
-  braces fix its interchange `@id` (implies `stable_ids`): never
-  re-minted over, surviving any edit (ancestor renames, re-nesting,
-  cross-file moves) because the carrier rides the source text.
-  Duplicate claims of one id raise at export.  Placement contract
-  (inside braces vs sibling-level bubbling) pinned by tests; end-to-end
-  verified export → dump → re-parse → export.  Scope record:
-  `docs/stable-identities.md` §4 Phase 2b.
-
-- **`reconcile_ids` / `to_interchange(reconcile_with=...)` (Phase 2,
-  L3 identity)** — adopt element `@id`s from a previous export (the
-  registry; dict, JSON text, or filesystem path).  Name-matched
-  elements keep their ids across edits that re-mint derived ids
-  (ancestor renames, re-nesting).  Injective (declaredName, @type)
-  matching keeps documents collision-free; nested `{"@id"}` refs are
-  remapped so reconciled documents import cleanly.  CLI:
-  `sysmlpy export --reconcile-with model.json -o model.json`
-  (idempotent after the first export).  Scope + Phase 1 context:
-  `docs/stable-identities.md`; walkthrough:
-  `examples/element_identity.py` (sections 4-5).
+- (empty — Phase 2b released in v0.96.4, registry reconciliation in
+  v0.96.3)
 
 ## v0.96.1 (2026-09-25)
 

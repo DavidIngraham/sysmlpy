@@ -1,8 +1,15 @@
 # sysmlpy — Project Status
 
-Current version: **v0.96.3** (2026-09-28)
+Current version: **v0.96.4** (2026-09-30)
 
 ---
+
+## Recent Highlights (v0.96.4)
+
+- **`doc_ids=True` — source-carried explicit ids**: `doc /* @id: … */`
+  inside an element's braces fixes its interchange `@id` (L3
+  identity, survives any edit); duplicate claims raise at export.
+  Placement contract pinned by tests.
 
 ## Recent Highlights (v0.96.3)
 
