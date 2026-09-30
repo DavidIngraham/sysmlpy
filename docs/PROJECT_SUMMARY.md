@@ -286,10 +286,9 @@ Notes for downstream tooling:
   hashes differently.  For a given source text the ids are stable, which
   is what diff-friendly interchange needs; for cross-document matching,
   match on declared names / resolved qualified names.
-  **`stable_ids=True`** (v0.96.3) switches the exporter to
-  content-addressed ids: named elements hash their qualified-name path
-  and type, so inserting/reordering unrelated elements elsewhere leaves
-  untouched ids unchanged (L2 idempotency — CLI: `--stable-ids`).  See
+  **`stable_ids=True` / `doc_ids=True`** (v0.96.3/v0.96.4) switch the
+  exporter to
+  content-addressed / explicit ids respectively; see
   [Stable Element Identities](stable-identities.md) for the guarantees
   and limitations.
 - Full walkthrough: `examples/element_identity.py` — parses twice,

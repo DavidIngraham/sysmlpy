@@ -18,7 +18,9 @@
     documents collision-free; nested `{"@id"}` refs are remapped so
     reconciled documents import cleanly; the CLI one-liner is an
     idempotent fixed point after the first export).
-- New public exports: `reconcile_ids`, `STABLE_NAMESPACE`.
+- New public exports: `reconcile_ids`,
+  `STABLE_NAMESPACE`, `doc_ids=True` (v0.96.4: explicit
+  `doc /* @id: … */` ids honored at export).
 - New demo: `examples/element_identity.py` — all identity layers
   (parse uuid4, position uuid5, content uuid5, registry reconciliation)
   runnable end to end.
@@ -57,6 +59,16 @@
   KerML batteries 5/5.
 
 ## Unreleased (on main)
+
+- **`doc_ids=True` on `to_interchange` (Phase 2b, L3 explicit
+  identity)** — `doc /* @id: … */` comments inside an element's own
+  braces fix its interchange `@id` (implies `stable_ids`): never
+  re-minted over, surviving any edit (ancestor renames, re-nesting,
+  cross-file moves) because the carrier rides the source text.
+  Duplicate claims of one id raise at export.  Placement contract
+  (inside braces vs sibling-level bubbling) pinned by tests; end-to-end
+  verified export → dump → re-parse → export.  Scope record:
+  `docs/stable-identities.md` §4 Phase 2b.
 
 - **`reconcile_ids` / `to_interchange(reconcile_with=...)` (Phase 2,
   L3 identity)** — adopt element `@id`s from a previous export (the

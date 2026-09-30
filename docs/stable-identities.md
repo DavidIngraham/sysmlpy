@@ -151,7 +151,7 @@ registry entries on the next write).  The doc-comment `@id:`
 convention (option C below) removes even that.
 
 ### Phase 2b (L3, source-carried explicit ids) — IMPLEMENTED
-(unreleased; on main)
+(v0.96.4, released on main)
 
 - **Carrier (verified safe-shape):** a ``doc /* @id: … */`` comment
   INSIDE the element's own braces attaches to that element (`.doc`
