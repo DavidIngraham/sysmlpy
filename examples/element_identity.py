@@ -173,8 +173,32 @@ def main() -> None:
     eng_v3 = next(e["@id"] for e in doc2["@graph"]
                   if e.get("declaredName") == "Engine")
     print("from-file reconcile keeps the id:", eng_v3 == eng_v1)
-    print("\nCLI: sysmlpy export model.sysml --stable-ids")
-    print("     sysmlpy export model.sysml --reconcile-with model.json"
+
+    banner("6) doc_ids=True — explicit ids carried in the model's text")
+    print("doc /* @id: EN */ INSIDE the element's braces fixes its @id:")
+    v_car = ("package Car { doc /* @id: TR */ part def Traction; "
+             "part def Engine { doc /* @id: EN */ attribute cylinders; } }")
+    v2_model = ("package VehicleFleet { doc /* @id: TR */ part def Traction; "
+                "part def Engine { doc /* @id: EN */ attribute cylinders;"
+                " } }")
+    d4 = to_interchange(loads(v_car), doc_ids=True)
+    d5 = to_interchange(loads(v2_model), doc_ids=True)
+    tr4 = next(e["@id"] for e in d4["@graph"]
+               if e.get("declaredName") == "Traction")
+    tr5 = next(e["@id"] for e in d5["@graph"]
+               if e.get("declaredName") == "Traction")
+    en4 = next(e["@id"] for e in d4["@graph"]
+               if e.get("declaredName") == "Engine")
+    en5 = next(e["@id"] for e in d5["@graph"]
+               if e.get("declaredName") == "Engine")
+    print("Traction @id (claims TR): ", tr4, "→", "TR" if tr4 == "TR" else "derived")
+    print("Engine  @id (claims EN): ", en4, "→", "EN" if en4 == "EN" else "derived")
+    print("after package rename Car→VehicleFleet — explicit ids follow")
+    print("(the comments moved with the text): Traction", "SAME" if tr5 == tr4 else "shifted",
+          "| Engine", "SAME (EN)" if en5 == en4 else "shifted")
+    print("\nAPI: to_interchange(model, doc_ids=True); CLI: t.b.d. with --embed-ids")
+    print("\nCLI (today): sysmlpy export model.sysml --stable-ids")
+    print("             sysmlpy export model.sysml --reconcile-with model.json"
           " -o model.json")
     print("scope + L3 options: docs/stable-identities.md")
 

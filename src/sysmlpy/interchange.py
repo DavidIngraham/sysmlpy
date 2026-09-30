@@ -62,6 +62,7 @@ Public surface:
 from __future__ import annotations
 
 import json as _json
+import re as _re
 import uuid as _uuid
 from collections import Counter as _Counter
 from pathlib import Path as _Path
@@ -170,9 +171,15 @@ class _StableIdAssigner:
     - Unnamed element below a declared ancestor: hashes the anchor QN,
       the structural path from that ancestor (dictionary keys +
       sibling indexes), and the ``@type`` — so it moves only if the
-      structure *between* it and its named anchor changes, never when
+      structure *between* it and its named ancestor changes, never when
       unrelated siblings elsewhere shift indexes.
     - Root: hashes the tree path under the fixed ``"root"`` anchor.
+
+    **Explicit ids (Phase 2b):** a ``doc /* @id: … */`` comment on the
+    element overrides derivation entirely — "never re-mint over an
+    explicit id".  Harvested from the public element tree (`.doc`)
+    before flattening and keyed by declared QN path
+    (:func:`_harvest_doc_ids`); duplicate claims of one id raise.
 
     Same-name sibling collisions (two ``part def Engine`` under one
     parent) share a base hash; the occurrence index among content-key
@@ -181,16 +188,65 @@ class _StableIdAssigner:
     documented degradation for L2 (see docs/stable-identities.md).
     """
 
-    def __init__(self):
+    def __init__(self, explicit_ids: "dict | None" = None):
         #: base content-key -> next occurrence index
         self._occurrence: dict = {}
-        #: node id() -> assigned @id (each dict node is visited once)
-        self._assigned: dict = {}
+        #: declared QN path (dot-joined str) -> explicit id from
+        #: ``doc /* @id: … */`` comments (Phase 2b — overrides
+        #: derivation entirely)
+        self._explicit: dict = dict(explicit_ids or {})
+        #: explicit id value -> adopting declared QN path (duplicate
+        #: claims of the same id from different elements raise)
+        self._id_owner: dict = {}
+        #: ('adopted', qn_str, struct_path) — one node of each identity
+        #: path adopts; wrapper re-visits keep derived ids
+        self._adopted: set = set()
 
     def id_for(self, node: dict, qn_path: tuple, struct_path: tuple) -> str:
         ident = _identification_of(node) if isinstance(node, dict) else None
         own_name = (ident or {}).get("declaredName")
         type_name = node.get("name") if isinstance(node, dict) else None
+        # Explicit-id lookup: match the SHORT declared path — qn_path
+        # accumulates the element's own name once per nested
+        # declaration/identification wrapper level (PackageDeclaration →
+        # DefinitionDeclaration → …), so 'P' arrives as 'P',
+        # 'P.P', … 'P.P.P'.  The harvested doc-id key ('P') therefore
+        # matches a *suffix-deduped* qn: dedupe consecutive repeats and
+        # collapse to the minimal unique path.
+        qn_str = _dedupe_repeat_tail(qn_path, own_name)
+        if qn_str and own_name and qn_str in self._explicit and \
+                qn_str.rsplit(".", 1)[-1] == own_name and \
+                type_name == "Identification":
+            # Adoption: the node carrying the Identification whose
+            # DEDUPED path equals the harvest key adopts the explicit
+            # id ('Car' → 'TR', 'Car.Engine' → 'EN').  Repeat-tail
+            # collapsing means Identification 'Car' arrives as
+            # 'Car.Car'/'Car.Car.Car' while 'Car' alone is the Package
+            # node — both collapse to the key, so gate on the node
+            # being an Identification (Package and PackageDeclaration
+            # keep derived ids — probe2j, Phase 2b build).
+            #
+            # Uniqueness is enforced on the ID VALUE, not per QN key:
+            # two different elements claiming the same explicit id
+            # ('P'→X and 'Q'→X) collide here (probe2l) — a hard export
+            # error, not a silent duplicate.
+            explicit = self._explicit[qn_str]
+            prior_owner = self._id_owner.get(explicit)
+            if prior_owner is None:
+                self._id_owner[explicit] = qn_str
+                return explicit
+            if prior_owner != qn_str:
+                raise ValueError(
+                    f"Duplicate explicit @id claim: {explicit} declared "
+                    f"by both '{prior_owner}' and '{qn_str}'")
+            return explicit
+            # prior_owner == qn_str: re-visit of the same element —
+            # fall through to derived id below (element ids stay unique
+            # in the graph).
+        else:
+            explicit = None
+        if explicit:
+            return explicit
         if own_name:
             qn = "|".join(qn_path + (own_name,))
             key = f"{qn}|{type_name}"
@@ -204,6 +260,70 @@ class _StableIdAssigner:
         if n:
             key = f"{key}|#{n}"
         return "sysml:" + str(_uuid.uuid5(STABLE_NAMESPACE, key))
+
+
+def _dedupe_repeat_tail(qn_path: tuple, own_name: "str | None") -> str:
+    """Minimal declared-name path for explicit-id lookup.
+
+    The visitor dict nests wrappers (``PackageDeclaration``,
+    ``DefinitionDeclaration``, ``Identification``) that each repeat the
+    element's own declaredName, so the flattener delivers
+    ``('P','P','P')``-style paths.  Dedupe *consecutive repeats* and
+    take the result — 'P.P.P' and 'P' both reduce to 'P', 'P.Engine'
+    stays 'P.Engine'.  (Regular id derivation is untouched: it uses
+    ``qn_path`` + separators directly and never collides because the
+    hash keys include the structural path for unnamed nodes.)
+    """
+    seq = qn_path + ((own_name,) if own_name else ())
+    out: list = []
+    for seg in seq:
+        if seg and (not out or out[-1] != seg):
+            out.append(seg)
+    # collapse nested repeats of the SAME name chain ('P','P' ← level
+    # nesting) while keeping genuinely distinct segments
+    return ".".join(out)
+
+
+_ID_IN_DOC = _re.compile(r"@id:\s*([^\s*/]+)")
+
+
+def _harvest_doc_ids(model) -> "dict | None":
+    """Harvest explicit ids from ``doc /* @id: … */`` comments.
+
+    Walks the *public* element tree (``.doc`` is populated on every
+    element kind) and maps each element's declared qualified-name path
+    to the id claimed in its doc comment.  Keys match the assigner's
+    identity paths (both are chains of declared names; the Model
+    root's per-parse uuid name is skipped).  Returns ``None`` when no
+    element claims an id, so the flag stays inert on plain models.
+    """
+    found: dict = {}
+
+    def _walk(el, stack: tuple):
+        name = getattr(el, "doc_name", None)
+        if name is None:
+            name = getattr(el, "name", None)
+        if name is not None and not _MODEL_NAME_RE.match(str(name)):
+            stack = stack + (str(name),)
+        doc = getattr(el, "doc", None)
+        if doc:
+            m = _ID_IN_DOC.search(str(doc))
+            if m:
+                qn = " ".join(stack) if False else ".".join(stack)
+                found[qn] = m.group(1).strip()
+            elif str(doc).strip().startswith("@id:"):
+                m2 = _re.match(r"@id:\s*([^\s*/]+)", str(doc).strip())
+                if m2 and stack:
+                    found[".".join(stack)] = m2.group(1).strip()
+        for child in getattr(el, "children", []):
+            _walk(child, stack)
+
+    _walk(model, ())
+    return found or None
+
+
+_MODEL_NAME_RE = _re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}"
+                             r"-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
 
 
 def _struct_text(struct_path: tuple) -> str:
@@ -359,7 +479,7 @@ def _extract_properties(source):
 
 
 def to_interchange(source, *, vocabulary=None, explicit_terms=False,
-                   stable_ids=False, reconcile_with=None):
+                   stable_ids=False, reconcile_with=None, doc_ids=False):
     """Export a model to the SysML v2 JSON interchange representation.
 
     Parameters
@@ -400,6 +520,17 @@ def to_interchange(source, *, vocabulary=None, explicit_terms=False,
                 doc = to_interchange(model, stable_ids=True)
             Path("model.json").write_text(interchange_to_json_text(doc))
 
+    doc_ids : bool
+        When true (implies ``stable_ids=True``), honor **explicit ids**
+        carried in the model's own text: a ``doc /* @id: <id> */``
+        comment on any element fixes that element's ``@id`` for its
+        declared qualified-name lifetime — derivation never overrides
+        it, and it survives *any* edit (ancestor renames, re-nesting,
+        moving between files) because it is written into the source.
+        Two elements claiming the same id raise ``ValueError``.  This
+        is the source-carried identity mechanism (Phase 2b,
+        ``docs/stable-identities.md`` option C).
+
     Returns
     -------
     dict
@@ -438,7 +569,23 @@ def to_interchange(source, *, vocabulary=None, explicit_terms=False,
         )
 
     graph: list = []
-    assigner = _StableIdAssigner() if (stable_ids or reconcile_with) else None
+    explicit = None
+    if doc_ids:
+        # Harvest explicit ids from the model's own doc comments.  Needs
+        # the public element tree — a re-parsed Model (source was str /
+        # dump text) is walked the same as a passed-in Model.
+        model_obj = source if hasattr(source, "children") else None
+        if model_obj is None:
+            try:
+                model_obj = source  # caller passed a Model-like object
+            except Exception:
+                model_obj = None
+        if model_obj is not None:
+            explicit = _harvest_doc_ids(model_obj)
+    if doc_ids and not (stable_ids or reconcile_with):
+        stable_ids = True  # explicit ids ride the stable-id machinery
+    assigner = (_StableIdAssigner(explicit_ids=explicit)
+                if (stable_ids or reconcile_with) else None)
     root_id = _flatten(root_dict, "root", "ownedRelationship", 0, graph,
                        assigner=assigner)
     context = dict(INTERCHANGE_CONTEXT)

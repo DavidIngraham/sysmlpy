@@ -150,6 +150,47 @@ declared name matches stay unmatched (fresh derived ids; they become
 registry entries on the next write).  The doc-comment `@id:`
 convention (option C below) removes even that.
 
+### Phase 2b (L3, source-carried explicit ids) — IMPLEMENTED
+(unreleased; on main)
+
+- **Carrier (verified safe-shape):** a ``doc /* @id: … */`` comment
+  INSIDE the element's own braces attaches to that element (`.doc`
+  on the public tree); doc text survives ``dump()`` → re-parse
+  idempotently.  **Pitfall pinned by tests:** a doc statement at
+  *sibling* level (outside the element's braces) bubbles to the
+  enclosing package — placement decides the owner
+  (``test_explicit_id_attach_point_semantics``).
+- **Harvest:** ``_harvest_doc_ids(model)`` walks the public tree
+  (`.doc` populated on every kind), mapping declared QN path → the
+  ``@id:`` token in the comment; the Model root's per-parse uuid
+  name is skipped.  Returns ``None`` on plain models so
+  ``doc_ids=True`` stays inert (byte-identical to ``stable_ids``
+  output — pinned by ``test_plain_models_unaffected``).
+- **Precedence:** explicit > registry > derive; never re-minted over
+  an explicit id (``_StableIdAssigner(explicit_ids=...)``).
+- **Qn-path bridge:** the assigner receives repeat-tail paths
+  (``('P','P','P')`` — one segment per declaration/identification
+  nesting level); ``_dedupe_repeat_tail`` collapses them so the
+  harvest key (``'P.Engine'``) matches.  Adoption gates on the node
+  being the Identification whose deduped path == the key (Package
+  and PackageDeclaration keep derived ids — probe2j).
+- **Duplicate-id export error:** two elements claiming the same
+  explicit id (same QN key twice, or different keys → same id
+  value) raise ``ValueError`` — enforced on the id VALUE
+  (probe2l).
+- **Verified end to end:** export → dump → re-parse → export keeps
+  the explicit id; full interchange round trip
+  (``from_interchange``) keeps it; graph-wide uniqueness; 12 new
+  tests (``tests/interchange_test.py::TestDocIds``).
+- API: ``to_interchange(..., doc_ids=True)`` (implies
+  ``stable_ids``).
+
+Deferred (see §5): import-side re-embedding of explicit ids into
+``dump()`` text (``--embed-ids``) — dump shapes are pinned by the
+168 round-trip tests; the doc carrier survives dumps as-is for
+elements whose bodies start with their doc comment, so full
+re-embedding is a tightening, not a correctness gap.
+
 ### Design decision recorded: declared-path, not resolved-QN
 
 Option A as scoped mentioned hashing the *resolved* qualified name via

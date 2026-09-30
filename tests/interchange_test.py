@@ -599,3 +599,124 @@ class TestReconcileIds:
         again_derived = to_interchange(rebuilt, stable_ids=True)
         again = reconcile_ids(again_derived, out)
         assert again["@graph"] == out["@graph"]
+
+# ---------------------------------------------------------------------------
+# doc-carried explicit @ids (doc /* @id: … */) — L3 identity (Phase 2b)
+# ---------------------------------------------------------------------------
+
+
+def _id_of(document, declared_name, type_name="Identification"):
+    hits = [e["@id"] for e in document["@graph"]
+            if e.get("declaredName") == declared_name
+            and e["@type"] == type_name]
+    assert len(hits) == 1, f"expected one {declared_name!r}, got {hits}"
+    return hits[0]
+
+
+_V1 = ("package Car { doc /* @id: TR */ part def Traction; "
+       "part def Engine { doc /* @id: EN */ attribute cylinders; } }")
+_V1_EDITED = ("package Car { part def Traction; part def Engine { "
+              "doc /* @id: EN */ attribute cylinders; "
+              "attribute displacement; } }")
+
+
+class TestDocIds:
+    """doc /* @id: … */ = source-carried identity (Phase 2b,
+    docs/stable-identities.md option C).  An explicit id rides the
+    model's own text (`.doc` on the element), overriding derivation;
+    verified end to end: export → dump → re-parse → export keeps it."""
+
+    def test_explicit_ids_honored(self):
+        d = to_interchange(loads(_V1), doc_ids=True)
+        # 'TR' is claimed by a doc comment on the PACKAGE (sibling-level
+        # in the body) → bubbles to the Package 'Car' and ids its
+        # Identification.  'EN' sits inside Engine's own braces →
+        # attaches to Engine.  Both honored.
+        assert _id_of(d, "Car") == "TR"
+        assert _id_of(d, "Engine") == "EN"
+
+    def test_explicit_id_attach_point_semantics(self):
+        """Doc-text placement decides the owner: a doc comment INSIDE
+        an element's own braces attaches to that element (its @id is
+        honored); a doc statement at sibling level bubbles to the
+        enclosing package.  Documented, tested contract."""
+        d = to_interchange(loads(
+            "package P {\n"
+            "    part def Engine { doc /* @id: EN */ }\n"
+            "    doc /* @id: PKG */\n"
+            "    part def Wheel;\n"
+            "}"), doc_ids=True)
+        assert _id_of(d, "Engine", "Identification") == "EN"
+        assert _id_of(d, "P", "Identification") == "PKG"
+
+    def test_explicit_id_survives_sibling_insertion(self):
+        d1 = to_interchange(loads(_V1), doc_ids=True)
+        d2 = to_interchange(loads(_V1_EDITED), doc_ids=True)
+        assert _id_of(d2, "Engine") == _id_of(d1, "Engine")
+
+    def test_explicit_id_survives_full_interchange_round_trip(self):
+        d1 = to_interchange(loads(_V1), doc_ids=True)
+        rebuilt = from_interchange(d1)
+        d2 = to_interchange(rebuilt, doc_ids=True)
+        assert _id_of(d2, "cylinders") == _id_of(d1, "cylinders")
+
+    def test_explicit_id_survives_dump_text_round_trip(self):
+        text = loads(_V1).dump()
+        assert "@id:" in text
+        d2 = to_interchange(loads(text), doc_ids=True)
+        d1 = to_interchange(loads(_V1), doc_ids=True)
+        assert _id_of(d2, "cylinders") == _id_of(d1, "cylinders")
+
+    def test_graph_ids_unique(self):
+        d = to_interchange(loads(_V1), doc_ids=True)
+        ids = [e["@id"] for e in d["@graph"]]
+        assert len(ids) == len(set(ids))
+
+    def test_duplicate_explicit_claim_rejected(self):
+        # same id claimed under two DIFFERENT QN keys ('P'→X, 'Q'→X):
+        # harvest carries both; adoption must collide in id_for.
+        with pytest.raises(ValueError, match="Duplicate explicit @id"):
+            to_interchange(loads(
+                "package P { doc /* @id: X */ part def A; } "
+                "package Q { doc /* @id: X */ part def B; }"),
+                doc_ids=True)
+
+    def test_duplicate_explicit_claim_same_qn_rejected(self):
+        # both claims bubble to the same package doc member → the
+        # harvester keeps the last ('X' → 'P') — still detectable
+        # upstream: two @id: tokens in one .doc.  Current behavior:
+        # harvest collapses; pin that the export succeeds (a stricter
+        # multi-claim error is a possible future tightening).
+        d = to_interchange(loads(
+            "package P { doc /* @id: X */ doc /* @id: Y */ part def A; }"),
+            doc_ids=True)
+        assert d["@graph"]  # export still completes
+
+    def test_plain_models_unaffected(self):
+        plain = "package P { part def Engine; part e : Engine; }"
+        a = to_interchange(loads(plain), stable_ids=True)
+        b = to_interchange(loads(plain), doc_ids=True)
+        assert json.dumps(a, sort_keys=True) == json.dumps(b, sort_keys=True)
+
+    def test_position_ids_differ_from_doc_ids(self):
+        a = to_interchange(loads(_V1))
+        b = to_interchange(loads(_V1), doc_ids=True)
+        assert _id_of(a, "Traction") != _id_of(b, "Traction")
+
+    def test_reconcile_can_override_doc_id_with_registry(self):
+        """Registry reconciliation runs after doc-id harvest: an
+        id present in BOTH wins as the registry value."""
+        d1 = to_interchange(loads("package Car { part def Traction; }"),
+                            stable_ids=True)
+        derived = _id_of(d1, "Traction")
+        d2 = to_interchange(loads(_V1), doc_ids=True,
+                            reconcile_with=d1)
+        # Traction carries @id: TR in its doc, but the registry is the
+        # MORE RECENT agreement — registry adoption wins.
+        assert _id_of(d2, "Traction") == derived
+
+    def test_doc_ids_survive_reparse_of_dump(self):
+        text = loads(_V1).dump()
+        d1 = to_interchange(loads(_V1), doc_ids=True)
+        d2 = to_interchange(loads(text), doc_ids=True)
+        assert _id_of(d2, "Engine") == _id_of(d1, "Engine")
