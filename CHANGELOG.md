@@ -25,6 +25,20 @@
   OMG XPect conformance 123 passed/3 skipped (optional-dep skips),
   KerML batteries 5/5.
 
+## Unreleased (on main)
+
+- **`reconcile_ids` / `to_interchange(reconcile_with=...)` (Phase 2,
+  L3 identity)** — adopt element `@id`s from a previous export (the
+  registry; dict, JSON text, or filesystem path).  Name-matched
+  elements keep their ids across edits that re-mint derived ids
+  (ancestor renames, re-nesting).  Injective (declaredName, @type)
+  matching keeps documents collision-free; nested `{"@id"}` refs are
+  remapped so reconciled documents import cleanly.  CLI:
+  `sysmlpy export --reconcile-with model.json -o model.json`
+  (idempotent after the first export).  Scope + Phase 1 context:
+  `docs/stable-identities.md`; walkthrough:
+  `examples/element_identity.py` (sections 4-5).
+
 ## v0.96.1 (2026-09-25)
 
 - **doc comments survive everywhere** — `doc /* ... */` on a package,

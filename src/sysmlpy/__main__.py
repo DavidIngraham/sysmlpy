@@ -393,8 +393,22 @@ def cmd_export(args) -> int:
         print(f"Parse error: {e}", file=sys.stderr)
         return 2
 
+    # --reconcile-with <registry>: adopt ids from the previous export
+    # (the registry file itself is typically the output path — ids stay
+    # stable from then on, even across edits that re-mint derived ids).
+    reconcile_with = None
+    if getattr(args, "reconcile_with", None):
+        reg_path = Path(args.reconcile_with)
+        if reg_path.exists():
+            reconcile_with = reg_path
+        else:
+            print(f"Registry file '{reg_path}' not found — minting fresh "
+                  "stable ids (delete the flag or create the file to "
+                  "reconcile).", file=sys.stderr)
+
     try:
-        document = to_interchange(model, stable_ids=args.stable_ids)
+        document = to_interchange(model, stable_ids=args.stable_ids,
+                                  reconcile_with=reconcile_with)
     except Exception as e:
         print(f"Error: export failed on this model: {e}", file=sys.stderr)
         return 1
@@ -972,6 +986,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="Content-address element @ids (L2 idempotency): ids follow "
              "declared qualified-name paths, so inserting/reordering "
              "unrelated elements elsewhere leaves untouched ids unchanged",
+    )
+    p_export.add_argument(
+        "--reconcile-with", metavar="REGISTRY",
+        help="Adopt element @ids from a previous export document (implies "
+             "--stable-ids); ids of name-matched elements survive edits "
+             "(L3 identity): re-export repeatedly with "
+             "'--reconcile-with model.json -o model.json' to keep ids "
+             "stable across the model's lifetime",
     )
     p_export.add_argument(
         "-l", "--library",

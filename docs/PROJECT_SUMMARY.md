@@ -295,9 +295,13 @@ Notes for downstream tooling:
   and limitations.
 - Full walkthrough: `examples/element_identity.py` — parses twice,
   shows the fresh uuid4 vs the stable `@id`s, and proves the round trip
-  preserves identity. For projects needing ids that also survive
-  edits and cross-document matching, see
-  [Stable Element Identities](stable-identities.md) (scope + options).
+  preserves identity.  **`reconcile_ids`** (registry sidecar, new):
+  re-exports adopt ids from the previous export file — name-matched
+  elements keep ids even when ancestor renames re-mint derived ids
+  (L3 identity).  `to_interchange(reconcile_with="model.json")`,
+  `reconcile_ids(doc, registry)`, CLI `sysmlpy export
+  --reconcile-with model.json -o model.json` (idempotent fixed point).
+  See [Stable Element Identities](stable-identities.md).
 
 ### Requirement Traceability (v0.62.0 — Adoption Roadmap Goal 2)
 

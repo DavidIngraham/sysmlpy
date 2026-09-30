@@ -23,6 +23,7 @@ from sysmlpy.interchange import (
     to_interchange,
     from_interchange,
     interchange_to_json_text,
+    reconcile_ids,
 )
 
 
@@ -469,3 +470,132 @@ class TestStableIds:
         pos = _find_id(to_interchange(src), "Engine")
         stb = _find_id(to_interchange(src, stable_ids=True), "Engine")
         assert pos != stb
+
+
+# ---------------------------------------------------------------------------
+# reconcile_ids — registry sidecar (L3 identity across edits)
+# ---------------------------------------------------------------------------
+
+
+class TestReconcileIds:
+    """Persisted-export registry keeps ids across edits that re-mint
+    derived ids (ancestor renames, re-nesting) — Phase 2 sidecar
+    mechanism from docs/stable-identities.md (option C, registry
+    variant), spike-validated before implementation."""
+
+    BASE = "package P { part def Engine; part e : Engine; attribute power; }"
+    EDITED = ("package Vehicle { part def Dummy; part def Engine; "
+              "part e : Engine; attribute power; }")
+
+    def test_id_survives_rename_plus_insert(self):
+        """The motivating case: derived ids re-mint when P→Vehicle
+        renames the QN path; reconciling against the round-1 export
+        keeps Engine's round-1 id."""
+        doc1 = to_interchange(self.BASE, stable_ids=True)
+        doc2 = to_interchange(self.EDITED, stable_ids=True)
+        eng_1 = _find_id(doc1, "Engine")
+        eng_2_derived = _find_id(doc2, "Engine")
+        assert eng_2_derived != eng_1  # derived id re-minted by rename
+        out = reconcile_ids(doc2, doc1)
+        assert _find_id(out, "Engine") == eng_1
+
+    def test_accepts_json_string_registry(self):
+        doc1 = to_interchange(self.BASE, stable_ids=True)
+        text = interchange_to_json_text(doc1)
+        doc2 = to_interchange(self.EDITED, stable_ids=True)
+        out = reconcile_ids(doc2, text)
+        assert _find_id(out, "Engine") == _find_id(doc1, "Engine")
+
+    def test_graph_ids_unique_after_reconcile(self):
+        """The design-spike pitfall: naive name matching adopted ONE old
+        id for TWO new unnamed wrappers (Dummy's and Engine's
+        PartDefinition/Definition/DefinitionDeclaration), producing 3
+        duplicate ids.  Injective matching (unique key on BOTH sides)
+        must keep the graph unique."""
+        doc1 = to_interchange(self.BASE, stable_ids=True)
+        doc2 = to_interchange(self.EDITED, stable_ids=True)
+        out = reconcile_ids(doc2, doc1)
+        ids = [e["@id"] for e in out["@graph"]]
+        assert len(ids) == len(set(ids))
+
+    def test_unrelated_elements_do_not_adopt(self):
+        # Engine's *renamed-package* wrapper id must not be adopted for
+        # an element of a different type/name; the Package
+        # Identification (Vehicle) has no registry counterpart and
+        # keeps its derived id.
+        doc1 = to_interchange(self.BASE, stable_ids=True)
+        pkg_1 = _find_id(doc1, "VehicleModel" if False else "P")
+
+        class _Edited:  # self.EDITED renamed P→Vehicle
+            pass
+        doc2 = to_interchange(self.EDITED, stable_ids=True)
+        out = reconcile_ids(doc2, doc1)
+        assert _find_id(out, "Vehicle") != pkg_1
+
+    def test_adoption_is_injective_first_match_wins(self):
+        # two same-name elements in BOTH docs: the (non-unique) key
+        # matches nothing — ids stay derived and unique.
+        doc1 = to_interchange(
+            "package P { part def Engine; part def Engine; }",
+            stable_ids=True)
+        doc2 = to_interchange(
+            "package P { part def Engine; part def Engine; }",
+            stable_ids=True)
+        out = reconcile_ids(doc2, doc1)
+        ids = [e["@id"] for e in out["@graph"]]
+        assert len(ids) == len(set(ids))
+
+    def test_renamed_element_falls_back_to_derived(self):
+        # an element whose name changed matches nothing: new derived id
+        doc1 = to_interchange("package P { part def Engine; }",
+                              stable_ids=True)
+        doc2 = to_interchange("package P { part def Motor; }",
+                              stable_ids=True)
+        out = reconcile_ids(doc2, doc1)
+        assert _find_id(out, "Motor") != _find_id(doc1, "Engine")
+
+    def test_registry_from_text_file_workflow(self, tmp_path):
+        """The documented workflow, file round: export → edit →
+        export reconciled from the file → ids preserved."""
+        reg = tmp_path / "model.json"
+        doc1 = to_interchange(self.BASE, stable_ids=True)
+        reg_path = tmp_path / "model.json"
+        reg_path.write_text(interchange_to_json_text(doc1))
+
+        model2 = loads(self.EDITED)
+        doc2 = to_interchange(model2, reconcile_with=str(reg_path))
+        assert _find_id(doc2, "Engine") == _find_id(doc1, "Engine")
+        reg_path.write_text(interchange_to_json_text(doc2))
+
+        # round 3: edit again, still stable
+        model3 = loads("package Vehicle { part def Engine; part e : Engine; "
+                       "attribute power; attribute torque; }")
+        doc3 = to_interchange(model3, reconcile_with=str(reg_path))
+        assert _find_id(doc3, "Engine") == _find_id(doc1, "Engine")
+        ids = [e["@id"] for e in doc3["@graph"]]
+        assert len(ids) == len(set(ids))
+
+    def test_reconcile_requires_graph(self):
+        with pytest.raises(ValueError):
+            reconcile_ids({"@graph": []}, {"no": "graph"})
+        with pytest.raises(ValueError):
+            reconcile_ids({"@graph": []}, "[]")
+
+    def test_reconcile_implied_by_to_interchange_flag(self):
+        doc1 = to_interchange(self.BASE, stable_ids=True)
+        doc2 = to_interchange(self.EDITED, stable_ids=True,
+                              reconcile_with=doc1)
+        assert _find_id(doc2, "Engine") == _find_id(doc1, "Engine")
+
+    def test_reconcile_result_round_trips(self):
+        """A reconciled document rebuilds into a live model whose
+        re-export (with the reconciled document itself as registry)
+        reproduces the identical graph — the registry keeps following
+        the model through edits."""
+        doc1 = to_interchange(loads(self.BASE), stable_ids=True)
+        doc2 = to_interchange(loads(self.EDITED), stable_ids=True)
+        out = reconcile_ids(doc2, doc1)
+        rebuilt = from_interchange(out)
+        again_derived = to_interchange(rebuilt, stable_ids=True)
+        again = reconcile_ids(again_derived, out)
+        assert again["@graph"] == out["@graph"]

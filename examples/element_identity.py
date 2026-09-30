@@ -52,6 +52,7 @@ from sysmlpy import loads
 from sysmlpy.interchange import (
     from_interchange,
     interchange_to_json_text,
+    reconcile_ids,
     to_interchange,
 )
 
@@ -137,7 +138,44 @@ def main() -> None:
                   if e.get("declaredName") == "Engine") else "SHIFTED")
     print("  stable ids:   id", "unchanged" if eng_before == eng_after
           else "SHIFTED")
+
+    banner("5) reconcile_ids — a registry sidecar follows the model forever")
+    print("stable ids still re-mint when an ancestor is RENAMED (the")
+    print("declared QN path changes).  Persist the export as a registry")
+    print("file and reconcile against it: name-matched elements adopt")
+    print("their old ids indefinitely.")
+    registry = to_interchange(base, stable_ids=True)
+    eng_v1 = next(e["@id"] for e in registry["@graph"]
+                  if e.get("declaredName") == "Engine")
+    derived = to_interchange(edited, stable_ids=True)
+    eng_derived = next(e["@id"] for e in derived["@graph"]
+                       if e.get("declaredName") == "Engine")
+    reconciled = reconcile_ids(derived, registry)
+    eng_v2 = next(e["@id"] for e in reconciled["@graph"]
+                  if e.get("declaredName") == "Engine")
+    print("Engine id, round 1 (registry):  ", eng_v1)
+    print("Engine id, round 2 derived:     ", eng_derived,
+          "← re-minted (P→Vehicle rename)")
+    print("Engine id, round 2 reconciled:  ", eng_v2,
+          "SAME" if eng_v2 == eng_v1 else "shifted")
+    ids = [e["@id"] for e in reconciled["@graph"]]
+    print("graph-wide unique after adopt:  ",
+          len(ids) == len(set(ids)), f"({len(ids)} elements)")
+
+    print("\nregistry carriers reconcile_ids() accepts: a Path (below),")
+    print("a path str, the JSON text, or the document dict.")
+    from pathlib import Path
+    import tempfile
+    tmp = Path(tempfile.mkdtemp())
+    (tmp / "model.json").write_text(interchange_to_json_text(registry))
+    doc2 = to_interchange(loads(edited),
+                          reconcile_with=tmp / "model.json")
+    eng_v3 = next(e["@id"] for e in doc2["@graph"]
+                  if e.get("declaredName") == "Engine")
+    print("from-file reconcile keeps the id:", eng_v3 == eng_v1)
     print("\nCLI: sysmlpy export model.sysml --stable-ids")
+    print("     sysmlpy export model.sysml --reconcile-with model.json"
+          " -o model.json")
     print("scope + L3 options: docs/stable-identities.md")
 
 

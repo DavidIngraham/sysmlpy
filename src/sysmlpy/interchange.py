@@ -63,14 +63,18 @@ from __future__ import annotations
 
 import json as _json
 import uuid as _uuid
+from collections import Counter as _Counter
+from pathlib import Path as _Path
 
 __all__ = [
     "INTERCHANGE_CONTEXT",
     "INTERCHANGE_VOCABULARY",
     "INTERCHANGE_NAMESPACE",
+    "STABLE_NAMESPACE",
     "to_interchange",
     "from_interchange",
     "interchange_to_json_text",
+    "reconcile_ids",
     "build_jsonld_context",
 ]
 
@@ -355,7 +359,7 @@ def _extract_properties(source):
 
 
 def to_interchange(source, *, vocabulary=None, explicit_terms=False,
-                   stable_ids=False):
+                   stable_ids=False, reconcile_with=None):
     """Export a model to the SysML v2 JSON interchange representation.
 
     Parameters
@@ -383,6 +387,18 @@ def to_interchange(source, *, vocabulary=None, explicit_terms=False,
         disambiguated by occurrence index; ids inside such a group do
         shift on group-local insertion.  See
         ``docs/stable-identities.md`` for the full analysis.
+    reconcile_with : dict or str, optional
+        A previous export (document dict or JSON text of one) to adopt
+        ids from — see :func:`reconcile_ids`.  Implies
+        ``stable_ids=True`` (reconciled re-exports must replay the
+        same id scheme the registry was written with).  The typical
+        workflow keeps the *previous* export file as the registry::
+
+            if Path("model.json").exists():
+                doc = to_interchange(model, reconcile_with="model.json")
+            else:
+                doc = to_interchange(model, stable_ids=True)
+            Path("model.json").write_text(interchange_to_json_text(doc))
 
     Returns
     -------
@@ -422,7 +438,7 @@ def to_interchange(source, *, vocabulary=None, explicit_terms=False,
         )
 
     graph: list = []
-    assigner = _StableIdAssigner() if stable_ids else None
+    assigner = _StableIdAssigner() if (stable_ids or reconcile_with) else None
     root_id = _flatten(root_dict, "root", "ownedRelationship", 0, graph,
                        assigner=assigner)
     context = dict(INTERCHANGE_CONTEXT)
@@ -432,11 +448,138 @@ def to_interchange(source, *, vocabulary=None, explicit_terms=False,
         context = build_jsonld_context(
             {"@graph": graph}, vocabulary=vocabulary
         )
-    return {
+    document = {
         "@context": context,
         "@id": root_id,
         "@graph": graph,
     }
+    if reconcile_with is not None:
+        document = reconcile_ids(document, reconcile_with)
+    return document
+
+
+# ---------------------------------------------------------------------------
+# id registry reconciliation — L3 identity across edits (Phase 2 sidecar)
+# ---------------------------------------------------------------------------
+
+
+def _remap_refs(value, remap: dict):
+    """Rewrite every ``{"@id": old}`` ref to ``{"@id": new}``.  Top-level
+    element ids are rewritten by :func:`reconcile_ids` directly; this
+    walks nested property values (references, chains) so adopted ids
+    are consistent everywhere the document is rebuilt from."""
+    if isinstance(value, dict):
+        if set(value.keys()) == {"@id"}:
+            new_id = remap.get(value["@id"])
+            if new_id is not None:
+                value["@id"] = new_id
+            return
+        for v in value.values():
+            _remap_refs(v, remap)
+    elif isinstance(value, list):
+        for item in value:
+            _remap_refs(item, remap)
+
+
+def reconcile_ids(document: dict, registry) -> dict:
+    """Adopt element ids from a previous interchange export (the registry).
+
+    The registry is a previously exported document (``to_interchange``
+    output, as dict or JSON text) whose ``@graph`` maps ``@id`` to
+    ``(declaredName, @type)``.  Every element of ``document`` whose
+    ``(declaredName, @type)`` matches **exactly one** registry entry —
+    and exactly one same-key element in ``document`` — inherits the
+    registry's ``@id`` instead of its freshly derived one.  This is the
+    mechanism that keeps ids stable across edits that re-mint derived
+    ids (ancestor renames, re-nesting): identity follows the declared
+    name wherever the name survives the edit.
+
+    Matching is deliberately **injective**:
+
+    - the key must be unique on BOTH sides — when the model grows a
+      second ``PartDefinition`` while the registry has one, neither is
+      matched (a naive many-to-one adoption produced duplicate ids in
+      every rename-plus-insert scenario during the design spike);
+    - an old id already adopted by an earlier element is never adopted
+      again (first match wins in registry order);
+    - unmatched elements keep their freshly derived ids and become new
+      registry entries when the document is written back out.
+
+    Intended workflow (the export file doubles as the registry)::
+
+        document = to_interchange(model, stable_ids=True)
+        if Path("model.json").exists():
+            document = reconcile_ids(document, Path("model.json"))
+        Path("model.json").write_text(interchange_to_json_text(document))
+
+    Parameters
+    ----------
+    document : dict
+        A freshly exported document (``to_interchange`` output).
+    registry : dict or str
+        The previous export: a document dict or a JSON string (the
+        text form loads the sidecar file directly).
+
+    Returns
+    -------
+    dict
+        ``document`` with adopted ids (modified in place and returned).
+    """
+    if isinstance(registry, (_Path, str)):
+        # Accept a filesystem path to a registry file (including
+        # ``Path`` objects), OR the previous export as JSON text /
+        # document dict.  A str that names an existing, plausibly
+        # small file loads from disk; anything else is JSON text.
+        # (A str is only treated as a path if its length is a sane
+        # filename length — JSON documents can be megabytes.)
+        if isinstance(registry, _Path) or (
+                isinstance(registry, str) and len(registry) < 4097
+                and "\n" not in registry and _Path(registry).exists()):
+            registry = _Path(registry).read_text(encoding="utf-8-sig")
+        registry = _json.loads(registry)
+    if not isinstance(registry, dict):
+        raise ValueError(
+            "registry must be an interchange document dict or JSON "
+            f"string, got {type(registry).__name__}")
+    old_graph = registry.get("@graph")
+    new_graph = document.get("@graph")
+    if not isinstance(old_graph, list) or not isinstance(new_graph, list):
+        raise ValueError("both documents need an @graph array")
+
+    def _key(e):
+        return (e.get("declaredName"), e.get("@type"))
+
+    old_counts = _Counter(_key(e) for e in old_graph)
+    new_counts = _Counter(_key(e) for e in new_graph)
+    by_key: dict = {}
+    for e in old_graph:
+        k = _key(e)
+        # unique on BOTH sides — injective matching (see docstring)
+        if k in old_counts and old_counts[k] == 1 and new_counts.get(k) == 1 \
+                and k not in by_key:
+            by_key[k] = e["@id"]
+    used: set = set()
+
+    # id re-map for refs: a matched element's *derived* id (assigned
+    # during this export) must yield to the adopted registry id in
+    # EVERY nested ``{"@id": ...}`` reference too — element ids are
+    # only the top level; typed-by references, target refs and child
+    # chains all point at the derived ids and would dangle after a
+    # top-level-only rewrite.
+    remap: dict = {}
+    for e in new_graph:
+        k = _key(e)
+        old_id = by_key.get(k)
+        if old_id is not None and old_id not in used:
+            used.add(old_id)
+            derived_id = e["@id"]
+            e["@id"] = old_id
+            remap[derived_id] = old_id
+
+    if remap:
+        for e in new_graph:
+            _remap_refs(e, remap)
+    return document
 
 
 def interchange_to_json_text(document: dict, *, indent: int = 2) -> str:

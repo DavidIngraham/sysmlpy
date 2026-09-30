@@ -951,6 +951,70 @@ See [`docs/plantuml-examples/`](docs/plantuml-examples/) for all rendered exampl
 | 15 | Relationship Matrix (GridView) | Relationship Matrix |
 | 16 | Tabular View — Color | Tabular View (color) |
 
+## Element Identity: Stable Interchange IDs
+
+Element `@id`s in interchange exports follow one of two schemes, and a
+reconciliation mechanism that follows the model across edits:
+
+**Default — position-derived (deterministic per source text).** Every
+`@graph` element gets `uuid5` from its tree position (parent id + key +
+index).  Same source text ⇒ byte-identical JSON in any process.
+
+```python
+from sysmlpy import to_interchange
+document = to_interchange(model)              # position-derived @ids
+```
+
+**`stable_ids=True` — content-addressed (L2 idempotency).** Named
+elements hash their declared qualified-name path + metaclass type;
+unnamed elements hash the nearest named anchor plus the structural path
+from it.  Inserting or reordering unrelated elements elsewhere leaves
+untouched ids unchanged:
+
+```python
+document = to_interchange(model, stable_ids=True)
+```
+
+```bash
+sysmlpy export model.sysml --stable-ids
+```
+
+**`reconcile_ids` — a registry sidecar (L3 identity).**  Content ids
+still re-mint when an *ancestor is renamed* (the qualified-name path
+changes) or an element moves to a different parent.  To follow a model
+across its lifetime, keep the previous export as a **registry file**
+and reconcile each new export against it: every element whose
+(declared name, type) matches exactly one registry entry adopts the
+registry's id.  Matching is injective — ambiguous (duplicated) keys
+match nothing and keep derived ids, so the document stays unique.
+
+```python
+from pathlib import Path
+from sysmlpy import loads, to_interchange, interchange_to_json_text
+
+registry_path = Path("model.json")
+document = (to_interchange(model, stable_ids=True)
+            if not registry_path.exists() else
+            to_interchange(model, reconcile_with=registry_path))
+registry_path.write_text(interchange_to_json_text(document))
+```
+
+Or as a one-liner on the CLI — the registry file is typically also the
+output file, making every export a fixed point after the first:
+
+```bash
+sysmlpy export model.sysml --reconcile-with model.json -o model.json
+```
+
+Round-trip guarantee: `from_interchange` on a reconciled document
+rebuilds the live model; re-exporting it *with the reconciled document
+as its registry* reproduces the identical `@graph`.  Elements renamed
+so thoroughly that no name matches fall back to fresh derived ids
+(becoming new registry entries on the next write).  See
+`docs/stable-identities.md` for the full analysis and
+`examples/element_identity.py` for a runnable walkthrough of all
+identity layers.
+
 ## ReqIF Interchange (Requirements Interchange Format)
 
 sysmlpy imports and exports **ReqIF 1.0** — the OMG requirements interchange

@@ -119,9 +119,36 @@ Phase 1 (L2) — **IMPLEMENTED (unreleased; on main)**:
    unrelated to ids).
 5. ✅ CLI: `sysmlpy export --stable-ids`.
 
-Phase 2 (L3, opt-in): doc-comment `@id:` convention (option C) layered
-on Phase 1; exporter/importer round-trip the explicit id and never
-re-mint over it.
+Phase 2 (L3) — **IMPLEMENTED (unreleased; on main, registry variant)**:
+
+- `reconcile_ids(document, registry)` — adopt ids from a previous
+  export (dict, JSON text, or a filesystem `Path`/path str).
+  Injective matching: (declaredName, @type) must be unique on BOTH
+  sides, each registry id adopted at most once; ambiguous keys keep
+  derived ids.
+- `to_interchange(..., reconcile_with=...)` convenience — implies
+  `stable_ids=True`.
+- **Nested-ref remap:** adoption rewrites not just the element's
+  top-level `@id` but every nested `{"@id": <derived>}` reference
+  pointing at it (typed-by references, member chains) — without the
+  remap, documents whose *identity* was reconciled dangle on import
+  (found by `test_reconcile_result_round_trips` during this build).
+- CLI: `sysmlpy export --reconcile-with model.json -o model.json` —
+  idempotent fixed point after the first export.
+- Tests (10): rename+insert motivating case, JSON-text registry,
+  graph-wide uniqueness after reconcile (the spike's dupes pitfall),
+  no-adoption for renamed/ambiguous elements, three-round file
+  workflow, injectivity on same-name groups, error guards,
+  `reconcile_with=` convenience flag, reconciled round trip.
+- Registry-file str/Path disambiguation: a str is treated as a path
+  only when it is < 4097 chars, single-line, and exists — otherwise
+  it parses as JSON text (a JSON *body* pasted inline must not be
+  `open()`ed as a filename).
+
+Remaining gap to full L3: elements renamed so thoroughly that no
+declared name matches stay unmatched (fresh derived ids; they become
+registry entries on the next write).  The doc-comment `@id:`
+convention (option C below) removes even that.
 
 ### Design decision recorded: declared-path, not resolved-QN
 
