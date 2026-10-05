@@ -33,6 +33,7 @@ nav:
   - Tutorial: TUTORIAL.md
   - Quick Start: quickstart.md
   - CI Integration: ci-integration.md
+  - Vee Link (SysML-STEP): vee-link.md
   - Jupyter %%sysml How-to: jupyter.md
   - Jupyter %%sysml magic: sysml-magics.md
   - LSP Server: LSP.md
