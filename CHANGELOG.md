@@ -1,5 +1,41 @@
 # CHANGELOG
 
+## Unreleased (on main)
+
+- **CI integrations: GitHub Actions, GitLab CI, pre-commit (new
+  `sysmlpy ci` subcommand).** One engine (`src/sysmlpy/ci_check.py`)
+  behind every integration, one exit-code contract: 0 clean, 1
+  findings at/above the failure level (parse failures always block),
+  2 operational error.
+  - **Parse gate (blocking, always on):** every `.sysml`/`.kerml` file
+    must parse (`.kerml` via the KerML grammar). Syntax errors carry
+    `file:line:col`.
+  - **Semantic gate (advisory by default, `--semantic strict`
+    opt-in):** findings are reported and labeled, but never fail the
+    check by default — the bundled standard library is symbol-indexed,
+    not model-loaded, so re-export facades (`ISQ`) and unit usages
+    (`SI::*`, `kg`, `['m/s²']`) are known false-positive classes
+    (28/71 valid-corpus files). Promote per-codebase once clean; the
+    `known_limitation` flag in JSON output identifies the classes.
+  - **GitHub reusable workflow** `.github/workflows/sysml-check.yml`
+    (`uses: mycr0ft/sysmlpy/.github/workflows/sysml-check.yml@vX.Y.Z`)
+    with DFA-cache restore for fast re-runs; also dogfoods on this
+    repo's pushes/PRs (gating the bundled library + showcase fixtures).
+  - **GitLab template** `.gitlab/sysml-check.gitlab-ci.yml`
+    (`include: project: mycr0ft/sysmlpy, file:
+    .gitlab/sysml-check.gitlab-ci.yml`, extend `.sysml-check`).
+  - **pre-commit hooks** `.pre-commit-hooks.yaml` (`sysmlpy-ci`,
+    `sysmlpy-parse`) — commit-time checks on changed files.
+  - Docs: `docs/ci-integration.md` (full options + promote-to-strict
+    path); README CI section. Tests: `tests/ci_check_test.py` (25).
+- **Visitor fix: named multiplicity bounds** (`[nCauses]`, `[wallNumber]`)
+  — two of the three `_make_bound` copies in `antlr_visitor.py` called
+  `int()` on the bound text and crashed (`invalid literal for int()`)
+  on non-numeric bounds; both now emit a `FeatureReferenceExpression`
+  like the third copy. Found by dogfooding the new CI gate on the
+  bundled library: `CausationConnections.sysml` and
+  `ShapeItems.sysml` now parse (previously crashed at load).
+
 ## v0.96.4 (2026-09-30)
 
 - **`doc_ids=True` on `to_interchange` (Phase 2b, L3 explicit

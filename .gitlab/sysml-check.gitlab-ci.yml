@@ -1,0 +1,55 @@
+# GitLab CI template for sysmlpy checks.
+#
+# Usage — .gitlab-ci.yml in YOUR repo:
+#
+#   include:
+#     - project: mycr0ft/sysmlpy
+#       ref: main            # or a vX.Y.Z tag
+#       file: .gitlab/sysml-check.gitlab-ci.yml
+#
+#   sysml-check:
+#     extends: .sysml-check
+#     variables:
+#       SYSML_PATHS: "models src"
+#       SYSML_SEMANTIC: "advisory"   # off | advisory | strict
+#       SYSML_EXCLUDE: "third_party/,sandbox/"
+#
+# The template defines a hidden base job `.sysml-check` — extend it and
+# override the variables you need. Defaults mirror the GitHub workflow.
+
+.sysml-check:
+  image: python:3.12-slim
+  stage: test
+  variables:
+    SYSML_PATHS: "."
+    SYSML_SEMANTIC: "advisory"
+    SYSML_EXCLUDE: ""
+    SYSML_LIBRARY: ""
+    SYSMLPY_VERSION: ""        # pin e.g. "0.96.4"; empty = latest
+    PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  cache:
+    key:
+      files:
+        - .gitlab-ci.yml
+    paths:
+      - .cache/pip
+      - .cache/sysmlpy     # persistent ANTLR DFA cache (faster re-runs)
+  before_script:
+    - python -m pip install --upgrade pip
+    - |
+      if [ -n "$SYSMLPY_VERSION" ]; then
+        pip install "sysmlpy==$SYSMLPY_VERSION"
+      else
+        pip install sysmlpy
+      fi
+    - export XDG_CACHE_HOME="$CI_PROJECT_DIR/.cache"
+  script:
+    - flags=""
+    - if [ -n "$SYSML_EXCLUDE" ]; then
+        IFS=','; for p in $SYSML_EXCLUDE; do flags="$flags --exclude $p"; done; unset IFS;
+      fi
+    - if [ -n "$SYSML_LIBRARY" ]; then flags="$flags --library $SYSML_LIBRARY"; fi
+    - sysmlpy ci $SYSML_PATHS $flags --semantic $SYSML_SEMANTIC
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH

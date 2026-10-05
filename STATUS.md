@@ -4,6 +4,15 @@ Current version: **v0.96.4** (2026-09-30)
 
 ---
 
+## In Flight (on main, unreleased)
+
+- **CI integrations** (GitHub Actions / GitLab / pre-commit, new
+  `sysmlpy ci` subcommand): parse gate blocking, semantics advisory
+  (`--semantic strict` opt-in) — see `docs/ci-integration.md`. Dogfooded
+  on this repo: the gate on the bundled library found and fixed two
+  visitor crashes on named multiplicity bounds (`[nCauses]`,
+  `[wallNumber]`).
+
 ## Recent Highlights (v0.96.4)
 
 - **`doc_ids=True` — source-carried explicit ids**: `doc /* @id: … */`

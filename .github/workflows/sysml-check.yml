@@ -1,0 +1,113 @@
+# SysML check gate — REUSABLE GitHub Actions workflow (workflow_call only).
+#
+# In YOUR repo:
+#
+#   jobs:
+#     sysml-check:
+#       uses: mycr0ft/sysmlpy/.github/workflows/sysml-check.yml@v0.96.4
+#       with:
+#         paths: models
+#         semantic: advisory      # off | advisory | strict
+#         exclude: third_party/
+#
+# This repo's own pushes/PRs dogfood it via sysml-dogfood.yml (which
+# calls this workflow locally with the repo's always-must-parse sets).
+
+name: SysML check
+
+on:
+  workflow_call:
+    inputs:
+      paths:
+        description: "Files or directories to check (space-separated)"
+        required: false
+        default: "."
+        type: string
+      semantic:
+        description: "Semantic gate: off | advisory | strict"
+        required: false
+        default: "advisory"
+        type: string
+      exclude:
+        description: "Substring patterns to skip (comma-separated)"
+        required: false
+        default: ""
+        type: string
+      library:
+        description: "Optional path to SysML v2 library files"
+        required: false
+        default: ""
+        type: string
+      install:
+        description: "pypi = install released sysmlpy; source = install from the checked-out repo"
+        required: false
+        default: "pypi"
+        type: string
+      version:
+        description: "sysmlpy version to install when install=pypi"
+        required: false
+        default: ""
+        type: string
+      python-version:
+        description: "Python version for the job"
+        required: false
+        default: "3.12"
+        type: string
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ inputs.python-version || '3.12' }}
+          cache: pip
+
+      - name: Install sysmlpy
+        run: |
+          python -m pip install --upgrade pip
+          if [ "${{ inputs.install || 'pypi' }}" = "source" ]; then
+            pip install .
+          elif [ -n "${{ inputs.version }}" ]; then
+            pip install "sysmlpy==${{ inputs.version }}"
+          else
+            pip install sysmlpy
+          fi
+
+      # Persistent ANTLR DFA cache across runs: cuts the first-parse cost
+      # (DFA construction dominates cold parses) on repeated CI runs.
+      - name: Restore DFA cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/sysmlpy
+          key: sysmlpy-dfa-${{ runner.os }}-py${{ inputs.python-version || '3.12' }}-${{ hashFiles('pyproject.toml') }}
+        continue-on-error: true
+
+      - name: Run sysmlpy ci
+        env:
+          # Comma-separated exclude input -> repeatable CLI flags
+          EXCLUDE_FLAGS: ${{ inputs.exclude }}
+        run: |
+          set -- ${{ inputs.paths || '.' }}
+          flags=""
+          if [ -n "$EXCLUDE_FLAGS" ]; then
+            IFS=',' read -ra pats <<< "$EXCLUDE_FLAGS"
+            for p in "${pats[@]}"; do
+              flags="$flags --exclude $p"
+            done
+          fi
+          if [ -n "${{ inputs.library }}" ]; then
+            flags="$flags --library ${{ inputs.library }}"
+          fi
+          # shellcheck disable=SC2086
+          sysmlpy ci "$@" $flags --semantic ${{ inputs.semantic || 'advisory' }}
+
+      - name: Save DFA cache
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.cache/sysmlpy
+          key: sysmlpy-dfa-${{ runner.os }}-py${{ inputs.python-version || '3.12' }}-${{ hashFiles('pyproject.toml') }}
+        continue-on-error: true
+        if: always()

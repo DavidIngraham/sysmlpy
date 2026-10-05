@@ -1,0 +1,29 @@
+# pre-commit hooks for sysmlpy.
+#
+# Usage in YOUR repo's .pre-commit-config.yaml:
+#
+#   repos:
+#     - repo: https://github.com/mycr0ft/sysmlpy
+#       rev: v0.96.4        # a vX.Y.Z tag
+#       hooks:
+#         - id: sysmlpy-ci
+#           args: ['--semantic', 'advisory']   # or strict / off
+#           exclude: ^third_party/             # skip vendored models
+#
+# parse gate (blocking) + advisory semantics by default — the same
+# engine and exit-code contract as the GitHub/GitLab CI jobs.
+
+- id: sysmlpy-ci
+  name: sysmlpy ci (parse gate + advisory semantics)
+  description: Parse-check .sysml/.kerml files; semantics advisory unless strict
+  entry: sysmlpy ci
+  language: python
+  pass_filenames: true
+  files: \.(sysml|kerml)$
+
+- id: sysmlpy-parse
+  name: sysmlpy parse gate (blocking)
+  description: Parse-check only — no semantic findings, always safe to block on
+  entry: sysmlpy ci --semantic off
+  language: python
+  files: \.(sysml|kerml)$

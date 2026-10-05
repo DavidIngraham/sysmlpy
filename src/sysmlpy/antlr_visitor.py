@@ -7381,12 +7381,26 @@ def _extract_multiplicity_from_ctx(om_ctx):
                         }
                     ]
                 }
-            else:
+            elif value_text.isdigit():
                 return {
                     "name": "MultiplicityExpressionMember",
                     "ownedRelatedElement": [
                         {"name": "MultiplicityRelatedElement", "ownedRelatedElement":
                             {"name": "LiteralInteger", "value": int(value_text)}
+                        }
+                    ]
+                }
+            else:
+                # Named multiplicity bound (e.g. '[nCauses]'), as used in
+                # the standard library's succession multiplicities — emit
+                # a feature reference, not an int().
+                return {
+                    "name": "MultiplicityExpressionMember",
+                    "ownedRelatedElement": [
+                        {"name": "MultiplicityRelatedElement", "ownedRelatedElement":
+                            {"name": "FeatureReferenceExpression", "ownedRelationship": [
+                                {"name": "FeatureReferenceMember", "memberElement": value_text}
+                            ]}
                         }
                     ]
                 }
@@ -7443,12 +7457,26 @@ def _extract_multiplicity_from_mp(mp_ctx):
                         }
                     ]
                 }
-            else:
+            elif value_text.isdigit():
                 return {
                     "name": "MultiplicityExpressionMember",
                     "ownedRelatedElement": [
                         {"name": "MultiplicityRelatedElement", "ownedRelatedElement":
                             {"name": "LiteralInteger", "value": int(value_text)}
+                        }
+                    ]
+                }
+            else:
+                # Named multiplicity bound (e.g. '[nCauses]'), as used in
+                # the standard library's succession multiplicities — emit
+                # a feature reference, not an int().
+                return {
+                    "name": "MultiplicityExpressionMember",
+                    "ownedRelatedElement": [
+                        {"name": "MultiplicityRelatedElement", "ownedRelatedElement":
+                            {"name": "FeatureReferenceExpression", "ownedRelationship": [
+                                {"name": "FeatureReferenceMember", "memberElement": value_text}
+                            ]}
                         }
                     ]
                 }

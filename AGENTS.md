@@ -158,6 +158,7 @@ Counts from `pytest --collect-only` at v0.90.0 (1635 total: 1510 + 123 conforman
 | `conformance_test.py` | 123 | OMG 2026-03 XPect parse conformance (slow; `-m conformance`) |
 | `sim_test.py` | 58 | State-machine simulation: guards, executing assignment effects, history pseudostates (`sim` extra) |
 | `cli_test.py` | 39 | `sysmlpy` CLI commands (`python -m sysmlpy`) |
+| `ci_check_test.py` | 25 | `sysmlpy ci` engine + CLI exit codes (parse gate blocking, semantics advisory/strict) |
 | `lsp_test.py` | 37 | Language Server Protocol server (position/completion/hover) |
 | `lsp_batch4_test.py` | 36 | LSP batch-4 features (references, rename, semantic tokens) |
 | `traceability_test.py` | 46 | Requirement traceability matrices and satisfy/verify edges |

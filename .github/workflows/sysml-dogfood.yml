@@ -1,0 +1,19 @@
+# Dogfood the SysML check gate on this repo's own always-must-parse sets:
+# the bundled standard library (src/sysmlpy/library) and the runtime
+# showcase fixtures (tests/fixtures). Parse gate blocking, semantics
+# advisory. Calls the same reusable workflow other repos consume.
+
+name: SysML check (dogfood)
+
+on:
+  push:
+    branches: ['*']
+  pull_request:
+
+jobs:
+  sysml-check:
+    uses: ./.github/workflows/sysml-check.yml
+    with:
+      paths: src/sysmlpy/library tests/fixtures
+      semantic: advisory
+      install: source

@@ -146,6 +146,7 @@ threshold or operational error, `2` = parse/load failure — so
 |---------|---------|
 | `sysmlpy parse <file>` | Parse a file and print a representation |
 | `sysmlpy analyze <file...>` | Semantic analysis; CI-friendly exit codes |
+| `sysmlpy ci <paths...>` | CI check: parse gate (blocking) + semantics (advisory/strict) — shared engine of the GitHub Action, GitLab template, pre-commit hooks |
 | `sysmlpy diff <old> <new>` | Semantic model diff (text/markdown/json) |
 | `sysmlpy view <file>` | Render a PlantUML / Markdown / HTML view |
 | `sysmlpy format <file...>` | Pretty-print (canonicalize) SysML files (alias `fmt`) |
@@ -187,9 +188,64 @@ sysml> %quit
 
 # Excel workbook of the tabular views
 sysmlpy xlsx bill_of_materials.sysml -o bom.xlsx
+
+# CI: check every model in a tree — parse failures block, semantics advisory
+sysmlpy ci models
 ```
 
 Every subcommand accepts `--help` for its own flags.
+
+## CI Integration (GitHub Actions, GitLab, pre-commit)
+
+`sysmlpy ci` is the one engine behind all the CI integrations — parse
+failures always block; semantic findings are **advisory** by default
+(known analyzer limitations on units-heavy models — see
+`docs/ci-integration.md`), and `--semantic strict` promotes semantics to
+blocking once your codebase is analyzer-clean.
+
+**GitHub Actions** — this repo ships a reusable workflow; in your repo:
+
+```yaml
+jobs:
+  sysml-check:
+    uses: mycr0ft/sysmlpy/.github/workflows/sysml-check.yml@v0.96.4
+    with:
+      paths: models
+      semantic: advisory   # off | advisory | strict
+```
+
+This repo's own pushes/PRs dogfood the same workflow
+(`sysml-dogfood.yml` calling it with `install: source`) over the
+bundled standard library and the showcase fixtures — the gate that
+found the two real visitor crashes on named multiplicity bounds
+(`[nCauses]`, `[wallNumber]`) in the bundled library.
+
+**GitLab CI** — include the template from this repo:
+
+```yaml
+include:
+  - project: mycr0ft/sysmlpy
+    ref: v0.96.4
+    file: .gitlab/sysml-check.gitlab-ci.yml
+
+sysml-check:
+  extends: .sysml-check
+  variables:
+    SYSML_PATHS: "models src"
+```
+
+**pre-commit** — check at commit time:
+
+```yaml
+repos:
+  - repo: https://github.com/mycr0ft/sysmlpy
+    rev: v0.96.4
+    hooks:
+      - id: sysmlpy-ci            # parse gate + advisory semantics
+```
+
+Full options (excludes, library path, version pinning, DFA cache for
+faster re-runs, and the promote-to-strict path): `docs/ci-integration.md`.
 
 ## Documentation
 

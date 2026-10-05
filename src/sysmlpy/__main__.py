@@ -6,6 +6,7 @@ Subcommands
 -----------
 parse     Parse a SysML file and print a representation (default: repr()).
 analyze   Run semantic analysis on one or more files; CI-friendly exit codes.
+ci        CI check: parse gate (blocking) + semantics (advisory/strict).
 view      Render a PlantUML / Markdown / HTML view of a model.
 diff      Semantic diff of two SysML files (review workflows).
 format    Canonicalize (pretty-print) SysML files (alias: fmt).
@@ -22,6 +23,8 @@ Legacy flat invocation (``sysmlpy FILE --dump`` etc.) is preserved for
 backward compatibility and behaves exactly like ``sysmlpy parse``.
 """
 
+from __future__ import annotations
+
 import argparse
 import inspect
 import json
@@ -34,7 +37,7 @@ from sysmlpy import loads
 # Subcommand table, also used to detect the legacy flat invocation form.
 SUBCOMMANDS = ("parse", "analyze", "view", "trace", "export", "import",
                "reqif-import", "reqif-export",
-               "eval", "xlsx", "sim", "diff", "format", "fmt", "repl")
+               "eval", "xlsx", "sim", "diff", "format", "fmt", "repl", "ci")
 
 
 # ---------------------------------------------------------------------------
@@ -213,6 +216,26 @@ def cmd_analyze(args) -> int:
     if threshold == "warning":
         return 1 if (errors or warnings) else 0
     return 1 if errors else 0
+
+
+# ---------------------------------------------------------------------------
+# sysmlpy ci
+# ---------------------------------------------------------------------------
+
+def cmd_ci(args) -> int:
+    from sysmlpy.ci_check import run_check, format_output
+
+    semantic = args.semantic
+    if args.semantic_off:
+        semantic = "off"
+    result = run_check(
+        args.paths,
+        semantic=semantic,
+        library=args.library,
+        exclude=args.exclude or (),
+    )
+    print(format_output(result, args.format))
+    return result.exit_code
 
 
 # ---------------------------------------------------------------------------
@@ -843,6 +866,43 @@ def build_parser() -> argparse.ArgumentParser:
         help="Suppress the trailing error/warning count",
     )
     p_analyze.set_defaults(func=cmd_analyze)
+
+    # -- ci ------------------------------------------------------------------
+    p_ci = sub.add_parser(
+        "ci",
+        help="CI check: parse gate (blocking) + semantics (advisory)",
+        description="Check SysML/KerML files the way CI does: every file "
+                    "must parse (blocking); semantic findings are advisory "
+                    "unless --semantic strict. Exit 0 clean, 1 findings, "
+                    "2 operational error.",
+    )
+    p_ci.add_argument(
+        "paths", nargs="+",
+        help="Files or directories (searched recursively) to check",
+    )
+    p_ci.add_argument(
+        "--semantic", choices=("off", "advisory", "strict"), default="advisory",
+        help="Semantic gate mode (default: advisory — findings reported, "
+             "parse failures still block). strict promotes semantics to "
+             "blocking; off skips semantic analysis entirely.",
+    )
+    p_ci.add_argument(
+        "--no-semantic", dest="semantic_off", action="store_true",
+        help="Shorthand for --semantic off",
+    )
+    p_ci.add_argument(
+        "-l", "--library",
+        help="Path to SysML v2 library files for semantic analysis",
+    )
+    p_ci.add_argument(
+        "--exclude", action="append", default=None,
+        help="Substring pattern to skip (repeatable), e.g. --exclude third_party/",
+    )
+    p_ci.add_argument(
+        "--format", choices=("text", "json"), default="text",
+        help="Output format: human-readable text (default) or JSON",
+    )
+    p_ci.set_defaults(func=cmd_ci)
 
     # -- diff ----------------------------------------------------------------
     p_diff = sub.add_parser(
