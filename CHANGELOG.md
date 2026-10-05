@@ -36,6 +36,19 @@
   bundled library: `CausationConnections.sysml` and
   `ShapeItems.sysml` now parse (previously crashed at load).
 
+## Unreleased (on main)
+
+- **`qn_registry()` (P3 Vee-join side table).** Every
+  `to_interchange(stable_ids=True)` document now carries
+  `"#qn_registry"`: deduped declared-QN path → stable `@id`
+  (Identification nodes; doc-carried explicit ids included), readable
+  with the new public helper of the same name — downstream consumers
+  (pyoslc STEP domain) join SysML elements by qualified name without
+  re-deriving hash chains. Empty for position-id exports. The
+  registry is stable across export→import→export, survives JSON
+  round-trips, and reconcile_ids adoption remaps it alongside the
+  graph refs. Pinned by `tests/qn_registry_test.py` (11).
+
 ## v0.96.4 (2026-09-30)
 
 - **`doc_ids=True` on `to_interchange` (Phase 2b, L3 explicit

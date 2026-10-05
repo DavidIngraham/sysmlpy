@@ -201,6 +201,12 @@ class _StableIdAssigner:
         #: ('adopted', qn_str, struct_path) — one node of each identity
         #: path adopts; wrapper re-visits keep derived ids
         self._adopted: set = set()
+        #: deduped declared QN path -> stable @id (Identification
+        #: nodes only; consumed by :func:`qn_registry` — the P3
+        #: Vee-join side table)
+        self._qn_registry: dict = {}
+        #: registry occurrence counter for same-name sibling groups
+        self._registry_occurrence: dict = {}
 
     def id_for(self, node: dict, qn_path: tuple, struct_path: tuple) -> str:
         ident = _identification_of(node) if isinstance(node, dict) else None
@@ -234,6 +240,8 @@ class _StableIdAssigner:
             prior_owner = self._id_owner.get(explicit)
             if prior_owner is None:
                 self._id_owner[explicit] = qn_str
+                # doc-carried explicit ids ride the registry too
+                self._qn_registry[qn_str] = explicit
                 return explicit
             if prior_owner != qn_str:
                 raise ValueError(
@@ -250,6 +258,23 @@ class _StableIdAssigner:
         if own_name:
             qn = "|".join(qn_path + (own_name,))
             key = f"{qn}|{type_name}"
+            # Record the deduped declared path for the QN registry
+            # (:func:`qn_registry` — the P3 Vee-join maps SysML
+            # qualified names to interchange @ids).  Only meaningful
+            # for Identification nodes (the declared element);
+            # wrappers (PackageDeclaration / DefinitionDeclaration)
+            # carry derived ids and are skipped.
+            if type_name == "Identification":
+                deduped = _dedupe_repeat_tail(qn_path, own_name)
+                if deduped and deduped not in self._qn_registry:
+                    self._qn_registry[deduped] = ("sysml:"
+                                                  + str(_uuid.uuid5(
+                                                      STABLE_NAMESPACE,
+                                                      key)))
+                elif deduped in self._qn_registry:
+                    n = self._registry_occurrence.get(key, 0)
+                    self._registry_occurrence[key] = n + 1
+                    self._qn_registry[f"{key}|#{n}"] = ...
         else:
             key = "root" if not qn_path and not struct_path else (
                 "|".join(qn_path) + "||" + _struct_text(struct_path)
@@ -602,7 +627,37 @@ def to_interchange(source, *, vocabulary=None, explicit_terms=False,
     }
     if reconcile_with is not None:
         document = reconcile_ids(document, reconcile_with)
+    document["#qn_registry"] = dict(assigner._qn_registry) if assigner else {}
     return document
+
+
+def qn_registry(document: dict) -> dict:
+    """Extract the qualified-name -> @id side table from an export.
+
+    Keyed by the DEDUPED declared qualified-name path
+    (``SaturnV.Engine.thrust``) — exactly the keys doc-id harvesting
+    and element navigation use, so callers can join a SysML model's
+    named elements to their stable interchange ``@id``s without
+    re-deriving hash chains.  The mapping is captured at export time
+    (Identification nodes only; unnamed wrapper nodes are not
+    declared elements and carry no registry entry).
+
+    The side table rides under the ``"#qn_registry"`` key of the same
+    document ``to_interchange`` returns (non-standard key, stripped by
+    ``interchange_to_json_text``'s consumers that filter on ``@``-
+    prefixed keys; keep it out of any byte-comparison assertions that
+    pin historic formats — those must slice the graph and context
+    only).
+
+    Returns
+    -------
+    dict
+        ``{ "SaturnV.Engine.thrust": "sysml:<uuid5>", ... }`` — empty
+        when the export was position-id (``stable_ids=False``): the
+        position scheme has no QN identity to expose.
+    """
+    reg = document.get("#qn_registry")
+    return dict(reg) if isinstance(reg, dict) else {}
 
 
 # ---------------------------------------------------------------------------
@@ -726,6 +781,18 @@ def reconcile_ids(document: dict, registry) -> dict:
     if remap:
         for e in new_graph:
             _remap_refs(e, remap)
+
+    # QN side table rides the same adoption: keys carry the NEW
+    # declared paths (the document's own names), values adopt the
+    # registry's old ids — remapped exactly like every other ref, so
+    # the registry stays graph-accurate after adoption (probe: the
+    # rename scenario — 'Ares.Engine' must map to doc1's Engine id).
+    side = document.get("#qn_registry")
+    if isinstance(side, dict) and remap:
+        for k in list(side):
+            new_id = remap.get(side[k])
+            if new_id is not None:
+                side[k] = new_id
     return document
 
 

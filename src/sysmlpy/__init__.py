@@ -20,7 +20,7 @@ __all__ = [
     "as_sequence_view", "as_case_view", "as_browser_view",
     "extract_traceability", "TraceabilityReport", "RequirementTrace",
     "to_interchange", "from_interchange", "interchange_to_json_text",
-    "reconcile_ids",
+    "reconcile_ids", "qn_registry",
     "reqif_import", "reqif_import_model", "reqif_export",
     "evaluate_expression", "evaluate_calculation", "collect_values",
     "check_constraints", "ConstraintReport", "ConstraintResult",
@@ -58,7 +58,7 @@ from sysmlpy.traceability import (
 )
 from sysmlpy.interchange import (
     to_interchange, from_interchange, interchange_to_json_text,
-    reconcile_ids,
+    reconcile_ids, qn_registry,
 )
 from sysmlpy.reqif_io import (
     reqif_import, reqif_import_model, reqif_export,
