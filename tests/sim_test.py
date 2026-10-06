@@ -9,15 +9,19 @@ run-to-completion, effect logging + executing assignment effects
 (shallow and deep), TUI drive, and value overrides.
 """
 
+import pytest
+
+# The whole sim stack extracts machines through boxes_view, which needs
+# the private diagramboxes package (pip install -e ~/boxes). Skip the
+# module when it is absent — same convention as boxes_view_test.py.
+pytest.importorskip("diagramboxes")
+
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-import pytest
-
 import sysmlpy
-from sysmlpy import boxes_view
 from sysmlpy.sim import (
     SimulationError,
     StateSimulator,
@@ -749,6 +753,11 @@ class TestHistoryPseudostates:
         assert md.history_markers == {}
 
     def test_boxes_collector_reports_pseudostates(self):
+        # boxes_view needs the private diagramboxes package: skip when
+        # absent, like boxes_view_test.py (same importorskip convention)
+        pytest.importorskip("diagramboxes")
+        from sysmlpy import boxes_view
+
         visit = sysmlpy.load_grammar(sysmlpy.loads(HISTORY).dump())
         machines = boxes_view._collect_state_machine(visit)
         comp = [s for s in machines[0]["states"] if isinstance(s, dict)]
