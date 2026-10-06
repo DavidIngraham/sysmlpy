@@ -69,11 +69,15 @@ jobs:
         python -m pip install coveralls pytest pyyaml
         COLLECTED=$(python -m pytest --collect-only -q tests 2>/dev/null | tail -1)
         echo "collected: $COLLECTED"
-        case "$COLLECTED" in
-          *"0 tests"*|*"no tests"*|*"errors"*)
-            echo "::error::pytest collection is broken — refusing to report empty coverage"
-            exit 1 ;;
-        esac
+        # Tripwire against the 0-tests-green failure mode (collection
+        # errors used to abort the run before any test executed, and the
+        # empty run still reported success). A healthy collection line is
+        # "<N> tests collected in <T>s" with N > 0 — assert on a
+        # non-zero count instead of error-substring guessing.
+        echo "$COLLECTED" | grep -Eq '^[1-9][0-9]* tests collected' || {
+          echo "::error::pytest collection is broken ('$COLLECTED') — refusing to report empty coverage"
+          exit 1
+        }
         python -m coverage run --source=src -m pytest tests || exit 1
         coverage report
         coveralls
