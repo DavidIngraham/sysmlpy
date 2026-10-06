@@ -165,6 +165,9 @@ class TestCommands:
         assert any("c2" in ln for ln in out)
 
     def test_sim_send_step(self):
+        # %sim drives the simulator, whose extraction routes through
+        # boxes_view (private diagramboxes pkg): skip when absent
+        pytest.importorskip("diagramboxes")
         s = ReplSession()
         s.submit("package M { state def SM { "
                  "entry; then idle; "
