@@ -5,6 +5,11 @@ corpus_recovery) assert via sys.exit(1) on failure and print per-check
 PASS/FAIL lines; running them as subprocesses keeps them runnable
 standalone AND under pytest.
 
+Per-battery subprocess budget is 1800 s: several OMG kernel-library
+files parse superlinearly (1.5–5 s each on 4 cores), and the three
+corpus sweeps dominate the wall time even with the process pool —
+2-core GitHub runners need more headroom than 600 s.
+
 The batteries resolve the sysmlpy source tree and the OMG
 SysML-v2-Release corpus themselves (``tests/kerml_batteries/_bootstrap.py``)
 — no machine-specific paths. Set ``SYSML2_RELEASE_DIR`` to point at a
@@ -22,7 +27,7 @@ HERE = Path(__file__).parent
 def _run(script: str) -> subprocess.CompletedProcess:
     return subprocess.run(
         [sys.executable, str(HERE / "kerml_batteries" / script)],
-        capture_output=True, text=True, timeout=600,
+        capture_output=True, text=True, timeout=1800,
         cwd=str(HERE.parent),
         env={
             **os.environ,
