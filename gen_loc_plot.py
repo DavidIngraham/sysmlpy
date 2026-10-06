@@ -38,9 +38,11 @@ def get_loc_history():
             if len(parts) == 3:
                 a, r, f = parts
                 # Skip generated/binary/lock files and ANTLR-generated parsers
-                skip_extensions = (".svg", ".png", ".lock", ".whl", ".tar.gz")
+                skip_extensions = (".svg", ".png", ".lock", ".whl",
+                                   ".tar.gz", ".interp", ".tokens")
                 skip_patterns = ("antlr4/SysMLv2Parser", "antlr4/SysMLv2Lexer",
                                  "antlr/SysMLv2Parser", "antlr/SysMLv2Lexer",
+                                 "KerMLParser", "KerMLLexer",
                                  "ParserListener", "ParserVisitor", "Lexer")
                 if f.endswith(skip_extensions):
                     continue
