@@ -5,7 +5,11 @@ via the wrapper; also runnable standalone."""
 import sys
 from pathlib import Path
 
-sys.path.insert(0, "/storage16/home/jfox/proj/sysmlpy/src")
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+from _bootstrap import boot, corpus_or_none, parse_texts_parallel  # noqa: E402
+
+boot()
 
 from sysmlpy import loads  # noqa: E402
 from sysmlpy.kerml import parse as kerml_parse  # noqa: E402
@@ -22,19 +26,25 @@ def check(name, cond, detail=""):
         print(f"  FAIL  {name}  [{detail}]")
 
 
-REPO = Path("/storage16/home/jfox/proj/third_party/SysML-v2-Release")
+REPO = corpus_or_none()
+if REPO is None:
+    print("  SKIP  OMG corpus unavailable — categories A/E need it; "
+          "set SYSML2_RELEASE_DIR")
 
 print("== category A: OMG .kerml corpus (94) all parse ==")
 ok = 0
-kfiles = sorted((REPO / "kerml/src/examples").rglob("*.kerml")) + \
-    sorted((REPO / "sysml.library/Kernel Libraries").rglob("*.kerml"))
-for fp in kfiles:
-    try:
-        kerml_parse(fp.read_text(encoding="utf-8", errors="replace"))
+kfiles: list[Path] = []
+if REPO is not None:
+    kfiles = sorted((REPO / "kerml/src/examples").rglob("*.kerml")) + \
+        sorted((REPO / "sysml.library/Kernel Libraries").rglob("*.kerml"))
+items = [(str(fp), fp.read_text(encoding="utf-8", errors="replace"))
+         for fp in kfiles]
+for fp_str, res in parse_texts_parallel(items, kerml_parse):
+    if res is not None:
+        FAIL.append(fp_str)
+        print(f"  FAIL {Path(fp_str).name}: {str(res)[:80]}")
+    else:
         ok += 1
-    except Exception as e:  # noqa: BLE001
-        FAIL.append(str(fp))
-        print(f"  FAIL {fp.name}: {str(e)[:80]}")
 check(f"OMG .kerml parse ({ok}/{len(kfiles)})", ok == len(kfiles))
 
 print()
@@ -54,15 +64,18 @@ except Exception as e:  # noqa: BLE001
 
 print()
 print("== category E full model: Annex A SimpleVehicleModel ==")
-p = REPO / "sysml/src/examples/Vehicle Example/SysML v2 Spec Annex A SimpleVehicleModel.sysml"
-try:
-    m = loads(p.read_text(encoding="utf-8"))
-    counts = m.count()
-    total = sum(counts.values())
-    check(f"Annex A SimpleVehicleModel parses ({total} elements)", total > 200,
-          str(counts)[:120])
-except Exception as e:  # noqa: BLE001
-    check("Annex A SimpleVehicleModel parses", False, str(e)[:120])
+if REPO is None:
+    print("  SKIP  category E requires the OMG corpus")
+else:
+    p = REPO / "sysml/src/examples/Vehicle Example/SysML v2 Spec Annex A SimpleVehicleModel.sysml"
+    try:
+        m = loads(p.read_text(encoding="utf-8"))
+        counts = m.count()
+        total = sum(counts.values())
+        check(f"Annex A SimpleVehicleModel parses ({total} elements)", total > 200,
+              str(counts)[:120])
+    except Exception as e:  # noqa: BLE001
+        check("Annex A SimpleVehicleModel parses", False, str(e)[:120])
 
 print()
 print(f"RESULT: {len(PASS)} passed, {len(FAIL)} failed")

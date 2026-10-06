@@ -4,7 +4,11 @@ import sys
 import tempfile
 from pathlib import Path
 
-sys.path.insert(0, "/storage16/home/jfox/proj/sysmlpy/src")
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+from _bootstrap import boot, corpus_or_none  # noqa: E402
+
+boot()
 
 from sysmlpy.semantic import LibrarySymbolIndex  # noqa: E402
 
@@ -21,6 +25,13 @@ def check(name, cond, detail=""):
 
 
 print("== hybrid LibrarySymbolIndex ==")
+_corpus = corpus_or_none()
+if _corpus is None:
+    print("  SKIP  OMG corpus unavailable — parse-backed .kerml symbol "
+          "extraction needs it; set SYSML2_RELEASE_DIR")
+    print()
+    print("RESULT: 0 passed, 0 failed")
+    sys.exit(0)
 LibrarySymbolIndex.clear_cache()
 syms = LibrarySymbolIndex.get_symbols()
 check("symbol count grew (regex 1604 → parse-backed)",

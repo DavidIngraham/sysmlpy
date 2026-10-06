@@ -45,12 +45,37 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
+    - name: Install sysmlpy with test extras
+      run: |
+        pip install -e ".[graph,kuzu,xlsx,sim,reqif,cayley]"
+    - name: Restore OMG SysML-v2-Release corpus cache
+      uses: actions/cache@v4
+      with:
+        path: .cache/SysML-v2-Release
+        key: sysml-v2-release-fb97b75
+    - name: Fetch OMG SysML-v2-Release corpus (pinned fb97b75)
+      run: |
+        if [ ! -d .cache/SysML-v2-Release ]; then
+          git clone --filter=blob:none --quiet \
+            https://github.com/Systems-Modeling/SysML-v2-Release.git \
+            .cache/SysML-v2-Release
+          git -C .cache/SysML-v2-Release checkout --quiet fb97b754f29588b8e9c7a35f370880cd15eb29e7
+        fi
     - name: Test coverage
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        SYSML2_RELEASE_DIR: ${{ github.workspace }}/.cache/SysML-v2-Release
       run: |
         python -m pip install coveralls pytest pyyaml
-        python -m coverage run --source=src -m pytest tests/ && coverage report
+        COLLECTED=$(python -m pytest --collect-only -q tests 2>/dev/null | tail -1)
+        echo "collected: $COLLECTED"
+        case "$COLLECTED" in
+          *"0 tests"*|*"no tests"*|*"errors"*)
+            echo "::error::pytest collection is broken — refusing to report empty coverage"
+            exit 1 ;;
+        esac
+        python -m coverage run --source=src -m pytest tests || exit 1
+        coverage report
         coveralls
 
   versioning:

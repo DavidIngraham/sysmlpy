@@ -4,7 +4,12 @@
 import sys
 from pathlib import Path
 
-sys.path.insert(0, "/storage16/home/jfox/proj/sysmlpy/src")
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+from _bootstrap import boot, corpus_or_none, kernel_library_dir, \
+    parse_texts_parallel  # noqa: E402
+
+boot()
 
 from sysmlpy.kerml.kerml import parse, KerMLSyntaxError  # noqa: E402
 
@@ -46,20 +51,33 @@ for src in cases_ok:
 
 print()
 print("== corpus: parse() over the OMG + bundled .kerml tree ==")
-REPO = Path("/storage16/home/jfox/proj/third_party/SysML-v2-Release")
-roots = [REPO / "kerml/src/examples", REPO / "sysml.library/Kernel Libraries",
-         Path("/storage16/home/jfox/proj/sysmlpy/src/sysmlpy/library/kernel")]
+REPO = corpus_or_none()
+roots = [] if REPO is None else [
+    REPO / "kerml/src/examples", REPO / "sysml.library/Kernel Libraries",
+    kernel_library_dir(),
+]
+if not roots:
+    print("  SKIP  OMG corpus unavailable (no local copy, clone failed); "
+          "set SYSML2_RELEASE_DIR or clone "
+          "Systems-Modeling/SysML-v2-Release")
 ok = total = 0
-for root in roots:
-    for fp in sorted(root.rglob("*.kerml")):
-        total += 1
-        try:
-            parse(fp.read_text(encoding="utf-8", errors="replace"))
+if roots:
+    items = []
+    for root in roots:
+        for fp in sorted(root.rglob("*.kerml")):
+            items.append((str(fp),
+                          fp.read_text(encoding="utf-8", errors="replace")))
+    total = len(items)
+    for fp_str, res in parse_texts_parallel(items, parse):
+        if res is not None:
+            FAIL.append(fp_str)
+            print(f"  FAIL {Path(fp_str).name}: {str(res)[:90]}")
+        else:
             ok += 1
-        except Exception as e:  # noqa: BLE001
-            FAIL.append(str(fp))
-            print(f"  FAIL {fp.name}: {str(e)[:90]}")
 check(f"corpus parse ({ok}/{total})", ok == total, f"{ok}/{total}")
+if total:
+    check("bundled kernel library included in corpus sweep", total > 100,
+          f"{total} files")
 
 print()
 print(f"RESULT: {len(PASS)} passed, {len(FAIL)} failed")

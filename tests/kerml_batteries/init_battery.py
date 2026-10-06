@@ -1,8 +1,13 @@
 #!/usr/bin/env python3
 """kerml package __init__ + SysML coexistence checks."""
 import sys
+from pathlib import Path
 
-sys.path.insert(0, "/storage16/home/jfox/proj/sysmlpy/src")
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+from _bootstrap import boot, kernel_library_dir  # noqa: E402
+
+boot()
 
 PASS, FAIL = [], []
 
@@ -25,8 +30,10 @@ from sysmlpy.kerml import (  # noqa: E402
 
 check("public API import", True)
 
-tree = parse_file("/storage16/home/jfox/proj/sysmlpy/src/sysmlpy/library/kernel/Base.kerml")
-check("parse_file on Base.kerml", tree is not None)
+base_kerml = kernel_library_dir() / "Base.kerml"
+tree = parse_file(str(base_kerml)) if base_kerml.exists() else None
+check("parse_file on Base.kerml", tree is not None,
+      f"missing: {base_kerml}")
 
 d = parse_to_dict("class C { feature f: T; }")
 check("parse_to_dict shape", d["children"][0]["children"][0]["declaredName"] == "f")

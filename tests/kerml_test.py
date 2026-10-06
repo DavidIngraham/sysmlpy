@@ -1,27 +1,38 @@
 """KerML parsing tests for pytest discovery.
 
-The three battery scripts (parse / visitor / init) assert via
-sys.exit(1) on failure and print per-check PASS/FAIL lines; running
-them as subprocesses keeps them runnable standalone AND under pytest.
+The five battery scripts (parse / visitor / init / symbol_index /
+corpus_recovery) assert via sys.exit(1) on failure and print per-check
+PASS/FAIL lines; running them as subprocesses keeps them runnable
+standalone AND under pytest.
+
+The batteries resolve the sysmlpy source tree and the OMG
+SysML-v2-Release corpus themselves (``tests/kerml_batteries/_bootstrap.py``)
+— no machine-specific paths. Set ``SYSML2_RELEASE_DIR`` to point at a
+local corpus checkout; otherwise one is cloned to ``.cache/`` on demand
+(skipped gracefully when offline).
 """
+import os
 import subprocess
+import sys
 from pathlib import Path
 
 HERE = Path(__file__).parent
-SRC = HERE.parent / "src"
-VENV_PY = "/home/jfox/.cache/pypoetry/virtualenvs/sysmlpy-VrdXgKoh-py3.13/bin/python"
 
 
 def _run(script: str) -> subprocess.CompletedProcess:
     return subprocess.run(
-        [VENV_PY, str(HERE / "kerml_batteries" / script)],
+        [sys.executable, str(HERE / "kerml_batteries" / script)],
         capture_output=True, text=True, timeout=600,
         cwd=str(HERE.parent),
+        env={
+            **os.environ,
+            "PYTHONDONTWRITEBYTECODE": "1",
+        },
     )
 
 
 def test_kerml_parse_battery():
-    """Syntax cases + full .kerml corpus through kerml.parse()."""
+    """Syntax cases + corpus through kerml.parse()."""
     r = _run("parse_battery.py")
     assert r.returncode == 0, f"parse battery failed:\n{r.stdout}\n{r.stderr}"
 
