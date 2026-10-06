@@ -140,6 +140,8 @@ def test_mission_sequence_perform_and_exhibit_surface():
 
 
 def test_mission_sequence_state_machine_drives():
+    # sim extraction routes through boxes_view (private diagramboxes pkg)
+    pytest.importorskip("diagramboxes")
     from sysmlpy.sim import StateSimulator
 
     model = loads((_fixture_dir() / "mission-sequence.sysml").read_text())
@@ -155,6 +157,8 @@ def test_mission_sequence_state_machine_drives():
 
 
 def test_spacecraft_comms_exhibit_state_surfaces_and_drives():
+    # sim extraction routes through boxes_view (private diagramboxes pkg)
+    pytest.importorskip("diagramboxes")
     model = loads((_fixture_dir() / "spacecraft-comms.sysml").read_text())
     # The GroundStation's exhibit-state machine is discoverable...
     sim = StateSimulator(model, focus="modes")
@@ -173,6 +177,8 @@ def test_reliability_requirements_surface():
 
 
 def test_spacecraft_comms_missions_parallel_machine_builds():
+    # sim extraction routes through boxes_view (private diagramboxes pkg)
+    pytest.importorskip("diagramboxes")
     from sysmlpy.sim import build_state_machine
 
     model = loads((_fixture_dir() / "spacecraft-comms.sysml").read_text())

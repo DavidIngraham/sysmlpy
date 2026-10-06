@@ -268,6 +268,16 @@ def sysmlpy_loads(text):
 
 from sysmlpy import analyze
 
+import importlib.util
+_diagramboxes_available = importlib.util.find_spec(
+    "diagramboxes") is not None
+
+
+@pytest.mark.skipif(
+    not _diagramboxes_available,
+    reason="state-machine well-formedness checks need sim -> boxes_view "
+           "(pip install -e ~/boxes) — analyze() skips them otherwise",
+)
 class TestStateMachineWellFormedness:
     """Goal 9: OCL well-formedness for ``state def`` machines."""
 

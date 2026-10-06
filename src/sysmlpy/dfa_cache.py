@@ -197,6 +197,7 @@ def _rebind_empty_contexts(payload: Tuple[Any, ...]) -> Tuple[Any, ...]:
         EmptyPredictionContext,
     )
     from antlr4.atn.SemanticContext import SemanticContext
+    from antlr4.dfa.DFAState import PredPrediction as _PredPrediction
 
     live_empty = _PC.EMPTY
     live_none = SemanticContext.NONE
@@ -249,11 +250,27 @@ def _rebind_empty_contexts(payload: Tuple[Any, ...]) -> Tuple[Any, ...]:
                         getattr(cfg, "semanticContext", None))
                 predicates = getattr(state, "predicates", None)
                 if predicates:
-                    state.predicates = [
-                        (alt, live_none if isinstance(pred, type(live_none))
-                         else pred)
-                        for alt, pred in predicates
-                    ]
+                    # antlr4 >= 4.10 stores PredPrediction objects here
+                    # (alt/pred slots, pred-first constructor); older
+                    # runtimes used (alt, pred) tuples. Normalize the
+                    # SemanticContext on either shape — a blind tuple
+                    # unpack crashes on the object form ("cannot unpack
+                    # non-iterable PredPrediction object"), silently
+                    # disabling the persisted cache.
+                    fixed_preds = []
+                    for entry in predicates:
+                        if isinstance(entry, _PredPrediction):
+                            if isinstance(entry.pred, type(live_none)):
+                                entry.pred = live_none
+                            fixed_preds.append(entry)
+                        else:
+                            alt, pred = entry
+                            fixed_preds.append(
+                                (alt,
+                                 live_none
+                                 if isinstance(pred, type(live_none))
+                                 else pred))
+                    state.predicates = fixed_preds
     return (payload[0], payload[1], rebuilt, payload[3], payload[4])
 
 

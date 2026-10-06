@@ -43,6 +43,7 @@ sysmlpy-lsp = "sysmlpy.lsp.stdio:main"
 pytest = ">=8.0,<9.0"
 
 [tool.pytest.ini_options]
+norecursedirs = ["tests/kerml_batteries"]
 markers = [
     "conformance: OMG 2026-03 XPect parse conformance suite (slow; deselect with -m 'not conformance')",
 ]

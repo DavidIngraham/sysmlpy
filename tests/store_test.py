@@ -733,6 +733,14 @@ class TestCayleyStore:
         b.clear()
 
 
+@pytest.mark.skipif(
+    not _CAYLEY_UP,
+    reason=(
+        "Cayley server not reachable at localhost:64210 "
+        "(start it: podman run -d --name cayley -p 64210:64210 "
+        "docker.io/cayleygraph/cayley)"
+    ),
+)
 class TestBackendParity:
     """The same query surface and results on NetworkX, Kùzu and Cayley.
 

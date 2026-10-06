@@ -395,6 +395,9 @@ package S {
 
 class TestStateMachinDiff:
     def test_states_added_removed(self):
+        # diff_state_machines extracts machines through sim -> boxes_view
+        # (private diagramboxes pkg): skip when absent
+        pytest.importorskip("diagramboxes")
         d = sysmlpy.diff_state_machines(
             sysmlpy.loads(MACHINE_OLD), sysmlpy.loads(MACHINE_NEW))
         added = {c.qualified_name for c in d.added}
@@ -403,6 +406,9 @@ class TestStateMachinDiff:
         assert removed == set()
 
     def test_transition_field_changes(self):
+        # diff_state_machines extracts machines through sim -> boxes_view
+        # (private diagramboxes pkg): skip when absent
+        pytest.importorskip("diagramboxes")
         d = sysmlpy.diff_state_machines(
             sysmlpy.loads(MACHINE_OLD), sysmlpy.loads(MACHINE_NEW))
         changed = [c for c in d.changed
@@ -413,12 +419,18 @@ class TestStateMachinDiff:
         assert fields["guard"].new == "key"
 
     def test_transition_added(self):
+        # diff_state_machines extracts machines through sim -> boxes_view
+        # (private diagramboxes pkg): skip when absent
+        pytest.importorskip("diagramboxes")
         d = sysmlpy.diff_state_machines(
             sysmlpy.loads(MACHINE_OLD), sysmlpy.loads(MACHINE_NEW))
         added = {c.qualified_name for c in d.added if c.kind == "Transition"}
         assert "hold" in added
 
     def test_initial_state_change(self):
+        # diff_state_machines extracts machines through sim -> boxes_view
+        # (private diagramboxes pkg): skip when absent
+        pytest.importorskip("diagramboxes")
         old = MACHINE_OLD.replace("entry; then off;", "entry; then engaged;")
         d = sysmlpy.diff_state_machines(
             sysmlpy.loads(old), sysmlpy.loads(MACHINE_NEW))
@@ -429,11 +441,17 @@ class TestStateMachinDiff:
         assert fields["initial"].new == "off"
 
     def test_identical_machines_empty(self):
+        # diff_state_machines extracts machines through sim -> boxes_view
+        # (private diagramboxes pkg): skip when absent
+        pytest.importorskip("diagramboxes")
         d = sysmlpy.diff_state_machines(
             sysmlpy.loads(MACHINE_OLD), sysmlpy.loads(MACHINE_OLD))
         assert d.is_empty()
 
     def test_no_machine_raises(self):
+        # diff_state_machines extracts machines through sim -> boxes_view
+        # (private diagramboxes pkg): skip when absent
+        pytest.importorskip("diagramboxes")
         from sysmlpy.sim import SimulationError
         with pytest.raises(SimulationError):
             sysmlpy.diff_state_machines(
@@ -441,6 +459,9 @@ class TestStateMachinDiff:
                 sysmlpy.loads("package P { part def R; }"))
 
     def test_history_region_in_transition_diff(self):
+        # diff_state_machines extracts machines through sim -> boxes_view
+        # (private diagramboxes pkg): skip when absent
+        pytest.importorskip("diagramboxes")
         old = MACHINE_OLD.replace(
             "transition cancel first engaged accept Cancel then off;",
             "transition cancel first engaged accept Cancel then h; "
