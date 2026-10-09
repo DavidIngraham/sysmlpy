@@ -402,9 +402,12 @@ def extract_traceability(model) -> TraceabilityReport:
         _extract_satisfy_edges(obj, traces_by_name, traces)
 
     # Derivation is traceability, not evidence of satisfaction or verification.
-    from sysmlpy.derivation import extract_derivations
+    from sysmlpy.domains import get_registry
     by_qualified = {t.qualified_name: t for t in traces}
-    for original, derived in extract_derivations(model)[0]:
+    for relation in get_registry().relations(model):
+        if relation.kind != 'derive':
+            continue
+        original, derived = relation.source, relation.target
         for obj in (original, derived):
             qualified = _qualified_name(obj)
             if qualified not in by_qualified:

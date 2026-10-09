@@ -2883,19 +2883,12 @@ class SemanticAnalyzer:
         issues.extend(self._check_satisfy_parts(model, symtab, lib_roots))
         issues.extend(self._check_connector_directions(model))
 
-        # Standard Requirement Derivation Domain Library checks.
-        from sysmlpy.derivation import evaluate_derivations, qualified_name
-        evaluations, derivation_issues = evaluate_derivations(model, requirement_results)
-        issues.extend(SemanticIssue(severity="error", code=i.code,
-                                   message=i.message, element=i.element)
-                      for i in derivation_issues)
-        for evaluation in evaluations:
-            if evaluation.result is False:
-                issues.append(SemanticIssue(
-                    severity="error", code="DERIVATION_IMPLICATION_VIOLATED",
-                    message=f"{qualified_name(evaluation.original)!r} is true but "
-                            f"derived requirement {qualified_name(evaluation.derived)!r} is false.",
-                    element=evaluation.derived))
+        # Domain hooks share this analysis context; no domain rules live here.
+        from sysmlpy.domains import DomainContext, get_registry
+        context = DomainContext(model, self, symtab, tuple(lib_roots),
+                                {'requirement_results': requirement_results})
+        issues.extend(SemanticIssue(i.severity, i.code, i.message, i.element, i.reference)
+                      for i in get_registry().analyze(context))
 
         # Step 6: Stylistic checks (warnings, not errors)
         if style_checks:

@@ -2608,12 +2608,6 @@ def _extract_connection_endpoints(conn_element):
     return None, None
 
 
-def _extract_derivations(model):
-    """Project resolved standard-library derivations into view edges."""
-    from .derivation import extract_derivations
-    return extract_derivations(model)[0]
-
-
 def _extract_connections(model):
     """Scan the model for all connector usages (``connection`` elements).
 
@@ -3980,13 +3974,13 @@ def as_general_view(model, focus=None, elements=None, style="bw", direction="TB"
     elements_list = gen.elements
     relationships = gen.relationships
 
-    # A readable convention for the requirement-derivation domain library:
-    # original ..> derived. Only draw edges whose requirement nodes are visible.
-    for original, derived in _extract_derivations(model):
-        if gen._is_included(original) and gen._is_included(derived):
-            src, dst = id_map.get(id(original)), id_map.get(id(derived))
+    # Domains contribute labeled, directed relationships independently of layout.
+    from .domains import get_registry
+    for edge in get_registry().relations(model):
+        if gen._is_included(edge.source) and gen._is_included(edge.target):
+            src, dst = id_map.get(id(edge.source)), id_map.get(id(edge.target))
             if src and dst:
-                relationship = (src, ARROW_STYLES['derive'], dst, '«derive»', False)
+                relationship = (src, '..>', dst, edge.label, False)
                 if relationship not in relationships:
                     relationships.append(relationship)
 
