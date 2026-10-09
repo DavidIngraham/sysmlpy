@@ -15,7 +15,10 @@ Local development on `fix/requirement-derivation` adds connection-body and
 metadata-prefix preservation, structured extended/ordinary end usages, and
 inline/typed-definition derivation edges in General Views. An unchanged, pinned
 OMG example demonstrates upstream parse success but round-trip/render failures;
-the same assertions pass with the fix. Regression tests are in
+the same assertions pass with the fix. The follow-up support commit adds direct
+library typing/subsetting, metadata subclasses, inherited/unnamed end resolution,
+analyzer integration, explicit three-valued implication checks, traceability
+output, and a second official example with interchange regressions. Regression tests are in
 `tests/derivation_test.py`; usage and remaining scope are documented in
 `docs/requirement-derivation.md`.
 

@@ -2,6 +2,14 @@
 
 ## Unreleased (on main)
 
+- Extend Requirement Derivation Domain Library support to direct base
+  typing/subsetting, metadata subclasses, inherited/redefined and unnamed ends,
+  and role-resolvable connector shorthand. Integrate structural diagnostics and
+  explicit three-valued implication checks with `analyze()`, and expose derivation
+  links in traceability reports/matrices. Add the pinned OMG vehicle example and
+  interchange regressions. Preserve anonymous connection keywords, end names,
+  and role subsetting during serialization.
+
 - Add initial support for the Requirement Derivation Domain Library.
   Preserve metadata-prefixed connection bodies and extended usages, including
   requirement derivation ends, through grammar and public-model round trips.

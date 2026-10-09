@@ -52,6 +52,8 @@ class RequirementTrace:
         relationships.
     verified_by : list of str
         Names referenced by ``verify ...`` members inside the requirement.
+    derived_from, derives : list of str
+        Qualified requirement names linked by derivation; these do not imply coverage.
     is_definition : bool
         True when the requirement is a ``requirement def``.
     """
@@ -63,6 +65,8 @@ class RequirementTrace:
     satisfied_by: list = field(default_factory=list)
     verified_by: list = field(default_factory=list)
     is_definition: bool = False
+    derived_from: list = field(default_factory=list)
+    derives: list = field(default_factory=list)
 
     @property
     def status(self) -> str:
@@ -144,6 +148,8 @@ class TraceabilityReport:
                     "verified_by": list(t.verified_by),
                     "status": t.status,
                     "is_definition": t.is_definition,
+                    "derived_from": list(t.derived_from),
+                    "derives": list(t.derives),
                 }
                 for t in self.requirements
             ],
@@ -171,6 +177,10 @@ class TraceabilityReport:
             f"({cov['coverage_ratio']:.0%})"
         )
         from sysmlpy.mdtables import pretty_markdown_tables
+        if any(t.derives for t in self.requirements):
+            lines.extend(["", "| Original requirement | Derived requirement |", "|---|---|"])
+            lines.extend(f"| {t.qualified_name} | {target} |"
+                         for t in self.requirements for target in t.derives)
         return pretty_markdown_tables("\n".join(lines))
 
     def to_text(self) -> str:
@@ -201,6 +211,10 @@ class TraceabilityReport:
                 f"    verified by: "
                 f"{', '.join(t.verified_by) if t.verified_by else '(none)'}"
             )
+            if t.derived_from:
+                lines.append(f"    derived from: {', '.join(t.derived_from)}")
+            if t.derives:
+                lines.append(f"    derives: {', '.join(t.derives)}")
         return "\n".join(lines)
 
 
@@ -387,6 +401,20 @@ def extract_traceability(model) -> TraceabilityReport:
     for obj in _walk(model):
         _extract_satisfy_edges(obj, traces_by_name, traces)
 
+    # Derivation is traceability, not evidence of satisfaction or verification.
+    from sysmlpy.derivation import extract_derivations
+    by_qualified = {t.qualified_name: t for t in traces}
+    for original, derived in extract_derivations(model)[0]:
+        for obj in (original, derived):
+            qualified = _qualified_name(obj)
+            if qualified not in by_qualified:
+                trace = RequirementTrace(name=obj.name, qualified_name=qualified,
+                                         text=getattr(obj, 'doc', None))
+                traces.append(trace)
+                by_qualified[qualified] = trace
+        source, target = _qualified_name(original), _qualified_name(derived)
+        by_qualified[source].derives.append(target)
+        by_qualified[target].derived_from.append(source)
     return TraceabilityReport(requirements=traces)
 
 
@@ -404,6 +432,7 @@ def as_traceability_matrix_view(
     custom_style=None,
     output_format="markdown",
     show_text=False,
+    show_derivation=False,
 ):
     """Requirements × traceability-coverage matrix.
 
@@ -412,6 +441,7 @@ def as_traceability_matrix_view(
     requirements satisfied by one of the given subjects, ``output_format``
     is one of ``"markdown"`` (default), ``"plantuml"`` or ``"html"``, and
     ``show_text`` includes the requirement documentation column.
+    ``show_derivation`` adds derivation columns/edges without changing coverage.
 
     Returns the rendered table as a string.
     """
@@ -443,7 +473,9 @@ def as_traceability_matrix_view(
         header = "| Requirement | Status | Satisfied by | Verified by |"
         if show_text:
             header = "| Requirement | Status | Satisfied by | Verified by | Text |"
-        sep = "|" + "---|" * (5 if show_text else 4)
+        if show_derivation:
+            header += " Derived from | Derives |"
+        sep = "|" + "---|" * ((5 if show_text else 4) + (2 if show_derivation else 0))
         lines = [header, sep]
         for t in reqs:
             name = t.qualified_name or t.name
@@ -451,6 +483,8 @@ def as_traceability_matrix_view(
             if show_text:
                 text = (t.text or "—").replace("|", "\\|")
                 cells.append(text)
+            if show_derivation:
+                cells.extend([", ".join(t.derived_from) or "—", ", ".join(t.derives) or "—"])
             lines.append("| " + " | ".join(cells) + " |")
         from sysmlpy.mdtables import pretty_markdown_tables
         return pretty_markdown_tables("\n".join(lines))
@@ -466,6 +500,9 @@ def as_traceability_matrix_view(
             )
             if show_text:
                 row += f"<td>{text}</td>"
+            if show_derivation:
+                from html import escape
+                row += f"<td>{escape(', '.join(t.derived_from))}</td><td>{escape(', '.join(t.derives))}</td>"
             rows.append(row + "</tr>")
         head = (
             "<tr><th>Requirement</th><th>Status</th>"
@@ -473,6 +510,8 @@ def as_traceability_matrix_view(
         )
         if show_text:
             head += "<th>Text</th>"
+        if show_derivation:
+            head += "<th>Derived from</th><th>Derives</th>"
         return (
             '<table border="1">\n' + head + "</tr>\n"
             + "\n".join(rows)
@@ -506,6 +545,14 @@ def as_traceability_matrix_view(
                 if f'object "{v}" as {vid}' not in lines:
                     lines.append(f'object "{v}" as {vid}')
                 lines.append(f"{vid} ..> {rid} : verify")
+        if show_derivation:
+            selected = {t.qualified_name for t in reqs}
+            for t in reqs:
+                source = t.qualified_name.replace("::", ".")
+                for target in t.derives:
+                    if target in selected:
+                        target = target.replace("::", ".")
+                        lines.append(f"req_{abs(hash(source)) % 10**8} ..> req_{abs(hash(target)) % 10**8} : derive")
         lines.append("@enduml")
         return "\n".join(lines)
 

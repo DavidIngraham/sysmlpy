@@ -1,4 +1,4 @@
-# Initial support for the Requirement Derivation Domain Library
+# Requirement Derivation Domain Library support
 
 The requirement-derivation domain library uses metadata-prefixed connections:
 
@@ -51,50 +51,92 @@ The renderer uses `original ..> derived : «derive»` as an explicit visualizati
 convention. This is not a claim of complete SysML v2 graphical conformance;
 [OMG tracks an open issue about derivation graphical notation](https://issues.omg.org/issues/spec/SysML/2.0).
 
-## Scope
+## Supported library forms
 
-- Resolves the standard `RequirementDerivation` metadata names through qualified
-  names, membership imports, wildcard imports, and aliases.
-- Retains annotated definition ends and ordinary usage-end `::>` bindings;
-  resolves named roles from the typed connection definition.
-- Requires exactly one original and at least one derived endpoint. Self-derivation,
-  unresolved targets, and ambiguous end roles produce no diagram edges.
-  `sysmlpy.derivation.extract_derivations(model)` returns `(edges, issues)`;
-  these extraction diagnostics are not integrated with `analyze()`.
-- Draws an edge only when both requirement nodes are selected. Repeated targets
-  produce one edge.
-- This is a focused standard-library projection, not a complete SysML resolver.
-  Arbitrary semantic-metadata subclasses, all feature inheritance/redefinition
-  rules, and logical implication evaluation are not implemented.
+The library is SysML v2 Part 1 section 9.6: `DerivationConnections` supplies the
+base connection and requirement roles; `RequirementDerivation` supplies semantic
+metadata. The following forms are interpreted, with round-trip regressions:
 
-## Review scope and follow-up support
+- `#derivation`, `#original`, and `#derive`, including qualified names, imports,
+  aliases, metadata short names, and user-defined metadata subclasses.
+- Direct `: DerivationConnections::Derivation` typing and `:> derivations`
+  subsetting, with original/derived role subsetting or redefinition on ends.
+- Named and unnamed ends; multi-level local connection-definition specialization;
+  inherited bindings; renamed and implicitly named redefined ends.
+- Connector shorthand with explicit role names, or positional binding to the
+  declared ends of a local connection definition. A bare abstract `Derivation`
+  connector without role declarations is diagnosed rather than assigned an
+  arbitrary original/derived direction.
 
-Suggested PR title: **Add initial support for the Requirement Derivation Domain Library**.
-The domain library is specified in SysML v2 Part 1, section 9.6. This work does
-not claim complete requirements-management or domain-library semantic conformance.
+`extract_derivations(model)` returns `(edges, issues)`. It checks end-role
+ambiguity, requirement endpoint kind, missing bindings, original/derived
+cardinality, self-derivation, connection inheritance cycles, and connector arity. Invalid
+connections produce diagnostics instead of misleading edges. Repeated targets
+produce one projected edge. `analyze()` includes these structural diagnostics.
 
-The commits separate general syntax preservation (ANTLR visitor, grammar objects,
-and public model loading/dumping) from interpreting the domain library and
-projecting it into a General View. The generic regression suite uses locally
-defined metadata and parts, without importing the derivation library:
-`tests/connection_roundtrip_test.py`. Domain-specific coverage and the pinned
-OMG example remain in `tests/derivation_test.py`.
+General Views render usage-level edges when both endpoints are selected. A
+connection definition establishes roles; it does not itself assert a relationship
+between concrete requirement usages. The visualization convention described
+above still applies; this change does not resolve OMG's open graphical-notation
+issue or claim full graphical conformance.
 
-| Capability | This change | Work needed for broader support |
-| --- | --- | --- |
-| Connection bodies, metadata prefixes, and end reference subsetting | Preserved through model round trips | Independent of domain semantics |
-| Standard metadata forms and named roles from a typed local definition | Supported for the tested forms | General semantic-metadata specialization and feature inheritance |
-| Direct `DerivationConnections::Derivation` typing or `derivations` subsetting, without metadata | Not interpreted by the extractor | Resolve standard base types/features and original/derived role subsetting |
-| Structural validity | Extraction checks endpoint kind, one original, derived endpoints, and self-derivation | Integrate diagnostics with `analyze()` and test malformed/ambiguous/inherited forms comprehensively |
-| `originalImpliesDerived` | Not evaluated | Define evaluation for known/unknown requirement results; do not equate an edge with proof of logical implication |
-| Diagram projection | Tested General View edges, explicitly a rendering convention | Broader graphical conformance and connection-definition presentation |
-| Traceability and interchange consumers | No new derivation-specific integration | Decide and test how derivation appears in trace reports, matrices, and interchange |
-| Official examples | One pinned example plus an explicitly modified variant | Add further official examples, including `VehicleRequirementDerivation.sysml`, and negative cases |
+## Implication evaluation
 
-An unqualified claim of full domain-library support would require an explicit
-coverage contract across the remaining rows, rather than just recognizing the
-three metadata keywords. Domain library support is optional under specification
-Clause 2; the library definitions themselves are normative.
+The library's `originalImpliesDerived` constraint is an implication, not evidence
+that an engineering derivation is justified for all possible designs. Evaluate
+it for **explicitly supplied requirement results**, keyed by qualified name:
+
+```python
+from sysmlpy import analyze
+from sysmlpy.derivation import evaluate_derivations
+
+values = {"Mission::voyage": True, "Mission::navigation": False}
+evaluations, issues = evaluate_derivations(model, values)
+issues = analyze(model, requirement_results=values)
+```
+
+Results are `True`, `False`, or `None` (unknown). A false original or a true derived
+result makes an implication true; a true original with a false derived result
+violates it; the other incomplete combinations remain unknown. Invalid value
+types are rejected. The analyzer reports known violations as
+`DERIVATION_IMPLICATION_VIOLATED`. Missing results do not become successful checks
+or fabricated errors. `evaluate_derivations()` exposes their unknown status.
+No result is inferred from an edge or a satisfy/verify relationship. Automatically
+solving arbitrary requirement constraints and proving universal logical
+implication are outside this evaluation contract.
+
+## Traceability and interchange
+
+`extract_traceability(model)` adds `derived_from` and `derives` qualified-name
+lists to requirement records and JSON output. Text and Markdown reports expose
+these relationships without counting them as satisfaction/verification coverage.
+Use `as_traceability_matrix_view(model, show_derivation=True)` for additional
+columns in Markdown/HTML or derivation edges in PlantUML; default coverage-matrix
+output remains compatible. Existing interchange preserves the connection model;
+no new interchange schema is introduced. Tests check extraction and rendering
+after `from_interchange(to_interchange(model))`.
+
+## Review scope and validation
+
+Suggested PR title: **Add support for the Requirement Derivation Domain Library**.
+This is a capability claim for the forms and evaluation contract above, not a
+claim that every SysML language/semantic-metadata construct is implemented.
+General metadata metaprogramming and full language conformance are not introduced.
+
+The first commit contains general model-preservation fixes and domain-independent
+regressions (`tests/connection_roundtrip_test.py`). The second adds initial
+library interpretation and a pinned official example (`tests/derivation_test.py`).
+A separate core follow-up fixes end subsetting and anonymous connection
+serialization, with domain-independent tests. The domain follow-up extends library
+forms, analyzer integration, three-valued implication checks, traceability outputs,
+and interchange regressions (`tests/derivation_support_test.py`).
+General parser/model-preservation changes must stay separate from domain behavior
+and integration changes in the review history.
+
+Both unchanged OMG examples are covered: `RequirementDerivationExample.sysml`
+and `VehicleRequirementDerivation.sysml`, with separate source revisions and
+checksums in the fixture README. The latter exercises unnamed ends and two
+independent derived requirements. Tests also cover invalid and ambiguous forms.
 
 ## Official-model regression and before/after
 
@@ -134,5 +176,38 @@ Verify `poetry run python -c "import sysmlpy; print(sysmlpy.__file__)"` under
 that environment points to the extracted source. Do not copy the old tests:
 the comparison deliberately runs the new assertions against both implementations.
 
-Both regression suites run in normal pytest discovery (no conformance marker):
-`poetry run pytest tests/connection_roundtrip_test.py tests/derivation_test.py -q`.
+All three regression suites run in normal pytest discovery (no conformance marker):
+`poetry run pytest tests/connection_roundtrip_test.py tests/derivation_test.py tests/derivation_support_test.py -q`.
+
+## Expanded-support validation (2026-10-09)
+
+The final combined run of required core tests and related reference, import,
+traceability, interchange, validator, diff, CLI, and domain tests produced
+**1,069 passed, 15 skipped, 10 failed**. All ten failures are in the existing
+`validator_test.py` and were reproduced with identical test names on both
+upstream `b0c827a` and the previous fork commit `9ae165d` (each baseline validator
+run: 67 passed, 7 skipped, 10 failed). They concern trigger payloads and ordinary
+connector diagnostics; they are not new derivation regressions. The required
+core suites and the new support tests passed.
+
+After separating the core regressions, the support-specific suite contains 42 tests; together with the earlier domain
+and generic connection regressions there are 73 tests for this work. SV Blue Dog
+still round-trips with 9 requirement usages and 8 derivation edges, and the OMG
+example's PlantUML renders successfully to SVG.
+
+## Current modularity
+
+The repository bundles domain models separately under `library/domain`: Analysis,
+Cause and Effect, Geometry, Metadata, Quantities and Units, and Requirement
+Derivation. Generic library indexing is provided by `LibrarySymbolIndex` in
+`semantic.py`; bundling/indexing models does not imply complete execution of their
+semantics. Quantities and Units additionally has Python implementation in
+`validator.py`, `evaluator.py`, `usage.py`, and `semantic.py`.
+
+Derivation interpretation is isolated in `derivation.py`, but `semantic.py`,
+`plantuml.py`, and `traceability.py` call it directly. There is no shared domain
+adapter registration interface today. A future modularity change should introduce
+a domain-independent hook contract in its own core commit, followed by domain
+adapters in separate commits. It should preserve default behavior and reuse common
+name resolution rather than grow multiple independent resolvers. No such framework
+is claimed or introduced by this patch.

@@ -2807,6 +2807,7 @@ class SemanticAnalyzer:
         library: Path | Sequence[Path] | str | Sequence[str] | None = None,
         filename: str | Path | None = None,
         style_checks: bool = True,
+        requirement_results: dict | None = None,
     ) -> list[SemanticIssue]:
         """Run semantic analysis on *model* and return a list of issues."""
         issues: list[SemanticIssue] = []
@@ -2881,6 +2882,20 @@ class SemanticAnalyzer:
         issues.extend(self._check_verify_targets(model, symtab, lib_roots))
         issues.extend(self._check_satisfy_parts(model, symtab, lib_roots))
         issues.extend(self._check_connector_directions(model))
+
+        # Standard Requirement Derivation Domain Library checks.
+        from sysmlpy.derivation import evaluate_derivations, qualified_name
+        evaluations, derivation_issues = evaluate_derivations(model, requirement_results)
+        issues.extend(SemanticIssue(severity="error", code=i.code,
+                                   message=i.message, element=i.element)
+                      for i in derivation_issues)
+        for evaluation in evaluations:
+            if evaluation.result is False:
+                issues.append(SemanticIssue(
+                    severity="error", code="DERIVATION_IMPLICATION_VIOLATED",
+                    message=f"{qualified_name(evaluation.original)!r} is true but "
+                            f"derived requirement {qualified_name(evaluation.derived)!r} is false.",
+                    element=evaluation.derived))
 
         # Step 6: Stylistic checks (warnings, not errors)
         if style_checks:
@@ -5205,6 +5220,7 @@ def analyze(
     filename: str | Path | None = None,
     style_checks: bool = True,
     strict: bool = False,
+    requirement_results: dict | None = None,
 ) -> AnalysisResult:
     """Run semantic analysis on *model* and return issues.
 
@@ -5220,6 +5236,9 @@ def analyze(
     style_checks : bool
         If True (default), run stylistic checks (naming conventions,
         file-package matching). Set to False to skip warnings.
+    requirement_results : dict or None
+        Optional qualified requirement names mapped to bool or None. Evaluates
+        derivation implications for these values only; missing results stay unknown.
     strict : bool
         If True, raises ValueError when any error-severity issues are found.
         Default False.
@@ -5231,7 +5250,8 @@ def analyze(
         convenient access to ``.errors`` and ``.warnings`` properties.
     """
     issues = SemanticAnalyzer().analyze(
-        model, library=library, filename=filename, style_checks=style_checks
+        model, library=library, filename=filename, style_checks=style_checks,
+        requirement_results=requirement_results,
     )
     result = AnalysisResult(issues)
     if strict:
