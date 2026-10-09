@@ -1761,7 +1761,9 @@ class ExpressionTypeChecker:
         analyzer: "SemanticAnalyzer",
         symtab: SymbolTable,
         lib_roots: list[Path] | None = None,
+        *, include_units: bool = True,
     ) -> None:
+        self._include_units = include_units
         self._analyzer = analyzer
         self._symtab = symtab
         self._lib_roots = lib_roots
@@ -2481,6 +2483,8 @@ class ExpressionTypeChecker:
         - ``*`` / ``/``: any dimension combination is type-sound (produces
           derived dimensions); only zero-dimensional-vs-quantity mixes are OK
         """
+        if not self._include_units:
+            return
         if op not in ("+", "-", "*", "/", "%"):
             return
         lhs_dim = self._dimension_of_operand(lhs, scope_path)
