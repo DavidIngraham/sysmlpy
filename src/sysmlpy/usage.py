@@ -378,6 +378,10 @@ class Usage(Searchable):
                     else:
                         self.grammar.body.items.append(
                             DefinitionBodyItem(item))
+            elif hasattr(self.grammar, 'body') and hasattr(self.grammar.body, 'body'):
+                self.grammar.body.body = DefinitionBody(
+                    {"name": "DefinitionBody", "ownedRelatedElement": body}
+                )
             elif hasattr(self.grammar, 'body') and hasattr(self.grammar.body, 'children'):
                 self.grammar.body.children = [
                     DefinitionBodyItem(item) for item in body
@@ -1125,6 +1129,8 @@ class Usage(Searchable):
             # (RequirementBody, CaseBody) are left untouched here.
             children = []
             body = getattr(grammar, 'body', None)
+            if type(body).__name__ == 'UsageBody':
+                body = body.body
             if body is not None and hasattr(body, 'children') and body.children:
                 children_list = []
                 for body_item in body.children:
@@ -1226,7 +1232,7 @@ class Usage(Searchable):
                 c = Attribute().load_from_grammar(sc)
                 c.parent = self
                 self.children.append(c)
-            elif class_name == "ReferenceUsage":
+            elif class_name in ("ReferenceUsage", "ExtendedUsage", "EndFeatureUsage"):
                 # v0.79.1: nested `ref driver : Person;` inside part/item
                 # bodies was dropped from the object tree.
                 c = Reference().load_from_grammar(sc)
@@ -5061,6 +5067,9 @@ class Reference(Usage):
     def dump(self):
         name_str = getattr(self, 'name', "") or ""
         type_str = ""
+
+        if type(getattr(self, 'grammar', None)).__name__ in ('ExtendedUsage', 'EndFeatureUsage'):
+            return self.grammar.dump()
 
         # NOTE: `is not None`, not truthiness — elements are falsy when
         # they have no children (Searchable.__len__), so a freshly built

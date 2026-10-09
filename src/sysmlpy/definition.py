@@ -1240,23 +1240,11 @@ class Package(Searchable):
                 c.parent = self
                 self.children.append(c)
             elif inner_class == "ConnectionDefinition":
-                c = Connection(definition=True)
-                c.grammar = inner_element
-                if hasattr(inner_element, 'definition') and hasattr(inner_element.definition, 'declaration') and inner_element.definition.declaration:
-                    decl = inner_element.definition.declaration
-                    if hasattr(decl, 'identification') and decl.identification:
-                        c.name = decl.identification.declaredName
+                c = Connection(definition=True).load_from_grammar(inner_element)
                 c.parent = self
                 self.children.append(c)
             elif inner_class == "ConnectionUsage":
-                c = Connection()
-                c.grammar = inner_element
-                if hasattr(inner_element, 'declaration') and inner_element.declaration:
-                    decl = inner_element.declaration
-                    if hasattr(decl, 'declaration') and decl.declaration:
-                        feat_decl = decl.declaration
-                        if hasattr(feat_decl, 'identification') and feat_decl.identification:
-                            c.name = feat_decl.identification.declaredName
+                c = Connection().load_from_grammar(inner_element)
                 c.parent = self
                 self.children.append(c)
             elif inner_class == "FlowConnectionDefinition":

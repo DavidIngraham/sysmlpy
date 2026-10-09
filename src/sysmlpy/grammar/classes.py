@@ -4929,6 +4929,7 @@ class BasicDefinitionPrefix:
 
     def dump(self):
         # Only one or the other
+        output = ""
         if self.isAbstract:
             output = "abstract"
         if self.isVariation:
@@ -5276,6 +5277,8 @@ class NonOccurrenceUsageElement:
                 self.children = Succession(definition["ownedRelatedElement"])
             elif name == "ReferenceUsage":
                 self.children = ReferenceUsage(definition["ownedRelatedElement"])
+            elif name == "ExtendedUsage":
+                self.children = ExtendedUsage(definition["ownedRelatedElement"])
             elif name == "ConstraintUsage":
                 self.children = ConstraintUsage(definition["ownedRelatedElement"])
             elif name == "CalculationUsage":
@@ -5303,6 +5306,26 @@ class NonOccurrenceUsageElement:
         output = {"name": self.__class__.__name__}
         output["ownedRelatedElement"] = self.children.get_definition()
         return output
+
+
+class ExtendedUsage:
+    """Metadata-prefixed usage with a structured declaration and completion."""
+
+    def __init__(self, definition):
+        self.prefix = definition.get("prefix", "")
+        self.extensions = [UsageExtensionKeyword(k) for k in definition["extensions"]]
+        self.usage = Usage(definition["usage"])
+        self.child = self.usage
+        self.children = [self.usage]
+
+    def dump(self):
+        return " ".join([self.prefix] + [k.dump() for k in self.extensions]
+                        + [self.usage.dump()]).strip()
+
+    def get_definition(self):
+        return {"name": "ExtendedUsage", "prefix": self.prefix,
+                "extensions": [k.get_definition() for k in self.extensions],
+                "usage": self.usage.get_definition()}
 
 
 class ReferenceUsage:
@@ -5345,6 +5368,14 @@ class EndFeatureUsage:
                 self.prefix = EndUsagePrefix(definition["prefix"])
             self.declaration = FeatureDeclaration(definition["usage"]["declaration"]["declaration"])
             self.completion = UsageCompletion(definition["usage"]["completion"])
+            self.child = Usage({
+                "name": "Usage",
+                "declaration": {"name": "UsageDeclaration", "declaration": self.declaration.get_definition()},
+                "completion": self.completion.get_definition(),
+            })
+            self.child.declaration.declaration = self.declaration
+            self.child.completion = self.completion
+            self.children = [self.child]
 
     def dump(self):
         output = []
@@ -5359,7 +5390,8 @@ class EndFeatureUsage:
             "name": self.__class__.__name__,
             "prefix": self.prefix.get_definition() if self.prefix else None,
             "usage": {
-                "declaration": {"declaration": self.declaration.get_definition() if self.declaration else None},
+                "name": "Usage",
+                "declaration": {"name": "UsageDeclaration", "declaration": self.declaration.get_definition() if self.declaration else None},
                 "completion": self.completion.get_definition() if self.completion else None,
             },
         }

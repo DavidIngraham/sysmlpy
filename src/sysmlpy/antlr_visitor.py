@@ -1134,6 +1134,11 @@ def _make_nested_package_dict(ctx, prefix=None, is_standard_library=False):
     }
 
 
+def _context_source(ctx):
+    """Retain token spacing in extension prefixes (including quoted names)."""
+    return ctx.start.getInputStream().getText(ctx.start.start, ctx.stop.stop)
+
+
 def _get_occurrence_usage_prefix(ctx):
     """Extract OccurrenceUsagePrefix from a usage context (for 'ref', direction, etc.)."""
     is_reference = False
@@ -1143,9 +1148,12 @@ def _get_occurrence_usage_prefix(ctx):
     is_end = False
     is_individual = False
     portion_kind = None
+    extensions = []
     
     if hasattr(ctx, 'occurrenceUsagePrefix') and ctx.occurrenceUsagePrefix():
         oup = ctx.occurrenceUsagePrefix()
+        extensions = [{"name": "UsageExtensionKeyword", "keyword": _context_source(k)}
+                      for k in oup.usageExtensionKeyword()]
         if hasattr(oup, 'basicUsagePrefix') and oup.basicUsagePrefix():
             bup = oup.basicUsagePrefix()
             is_reference = hasattr(bup, 'REF') and bup.REF() is not None
@@ -1175,7 +1183,7 @@ def _get_occurrence_usage_prefix(ctx):
     
     has_direction = any([direction_in, direction_out, direction_inout])
     
-    if not is_reference and not has_direction and not is_end and not is_individual and portion_kind is None:
+    if not is_reference and not has_direction and not is_end and not is_individual and portion_kind is None and not extensions:
         return None
     
     ref_prefix = None
@@ -1211,7 +1219,7 @@ def _get_occurrence_usage_prefix(ctx):
         },
         "isIndividual": "individual" if is_individual else None,
         "portionKind": portion_kind_dict,
-        "usageExtension": []
+        "usageExtension": extensions
     }
 
 
@@ -1294,15 +1302,17 @@ def _get_occurrence_definition_prefix(ctx):
     """Extract OccurrenceDefinitionPrefix from a definition context (for 'abstract' etc.)."""
     is_abstract = False
     is_variation = False
+    keywords = []
     
     if hasattr(ctx, 'occurrenceDefinitionPrefix') and ctx.occurrenceDefinitionPrefix():
         odp = ctx.occurrenceDefinitionPrefix()
+        keywords = [_context_source(k) for k in odp.definitionExtensionKeyword()]
         if hasattr(odp, 'basicDefinitionPrefix') and odp.basicDefinitionPrefix():
             bdp = odp.basicDefinitionPrefix()
             is_abstract = hasattr(bdp, 'ABSTRACT') and bdp.ABSTRACT() is not None
             is_variation = hasattr(bdp, 'VARIATION') and bdp.VARIATION() is not None
     
-    if not is_abstract and not is_variation:
+    if not is_abstract and not is_variation and not keywords:
         return None
     
     return {
@@ -1314,7 +1324,7 @@ def _get_occurrence_definition_prefix(ctx):
         },
         "isIndividual": None,
         "ownedRelationship": [],
-        "keyword": []
+        "keyword": keywords
     }
 
 def _make_part_definition_dict(ctx, member_prefix=None):
@@ -6146,12 +6156,21 @@ def _make_end_feature_usage_dict(ctx):
                         fsp = fd.featureSpecializationPart()
                         specialization = _build_specialization_from_fsp(fsp)
     
-    # Get multiplicity from featureDeclaration (direct child of EndFeatureUsage)
+    # The end target (::>) is on the direct feature declaration, not the
+    # cross-feature declaration in the prefix. Use the complete converter.
     multiplicity_dict = None
     if hasattr(ctx, 'featureDeclaration') and ctx.featureDeclaration():
         fd = ctx.featureDeclaration()
         if hasattr(fd, 'featureSpecializationPart') and fd.featureSpecializationPart():
             fsp = fd.featureSpecializationPart()
+            direct_specialization = _build_full_specialization_from_ud(fd)
+            if specialization and direct_specialization:
+                # The prefix can carry typing while the direct declaration
+                # carries reference subsetting or just multiplicity.
+                specialization["specialization"].extend(
+                    direct_specialization.get("specialization", []))
+            elif direct_specialization:
+                specialization = direct_specialization
             if hasattr(fsp, 'multiplicityPart') and fsp.multiplicityPart():
                 mp = fsp.multiplicityPart()
                 multiplicity_dict = _extract_multiplicity_from_mp(mp)
@@ -6858,7 +6877,7 @@ def _make_connection_usage_dict(ctx, prefix=None):
                     "name": "StructureUsageElement",
                     "ownedRelatedElement": {
                         "name": "ConnectionUsage",
-                        "prefix": prefix,
+                        "prefix": _get_occurrence_usage_prefix(ctx),
                         "declaration": {
                             "name": "UsageDeclaration",
                             "declaration": {
@@ -6876,7 +6895,7 @@ def _make_connection_usage_dict(ctx, prefix=None):
                             "name": "UsageBody",
                             "body": {
                                 "name": "DefinitionBody",
-                                "ownedRelatedElement": []
+                                "ownedRelatedElement": _visit_definition_body_dict(ctx.usageBody().definitionBody())
                             }
                         }
                     }
@@ -7917,14 +7936,14 @@ def _make_nested_connection_usage_dict(ctx, prefix=None):
                 "name": "StructureUsageElement",
                 "ownedRelatedElement": {
                     "name": "ConnectionUsage",
-                    "prefix": prefix,
+                    "prefix": _get_occurrence_usage_prefix(ctx),
                     "declaration": declaration,
                     "part": connector_part,
                     "body": {
                         "name": "UsageBody",
                         "body": {
                             "name": "DefinitionBody",
-                            "ownedRelatedElement": []
+                            "ownedRelatedElement": _visit_definition_body_dict(ctx.usageBody().definitionBody())
                         }
                     }
                 }
@@ -11029,6 +11048,47 @@ def _visit_nested_non_occurrence_usage(non_occ):
     """Visit a non-occurrence usage element for nested body items."""
     if non_occ is None:
         return None
+
+    if non_occ.extendedUsage():
+        ctx = non_occ.extendedUsage()
+        name, shortname = _get_usage_identification(ctx)
+        return {
+            "name": "NonOccurrenceUsageElement",
+            "ownedRelatedElement": {
+                "name": "ExtendedUsage",
+                "prefix": _context_source(ctx.unextendedUsagePrefix()),
+                "extensions": [
+                    {"name": "UsageExtensionKeyword", "keyword": _context_source(k)}
+                    for k in ctx.usageExtensionKeyword()
+                ],
+                "usage": {
+                    "name": "Usage",
+                    "declaration": {
+                        "name": "UsageDeclaration",
+                        "declaration": {
+                            "name": "FeatureDeclaration",
+                            "identification": {
+                                "name": "Identification",
+                                "declaredName": name,
+                                "declaredShortName": shortname,
+                            },
+                            "specialization": _build_full_specialization_from_ctx(ctx),
+                        },
+                    },
+                    "completion": {
+                        "name": "UsageCompletion",
+                        "valuepart": _get_usage_value_part(ctx),
+                        "body": {
+                            "name": "UsageBody",
+                            "body": {
+                                "name": "DefinitionBody",
+                                "ownedRelatedElement": _extract_body_from_usage_ctx(ctx),
+                            },
+                        },
+                    },
+                },
+            },
+        }
     
     # Handle endFeatureUsage (end bead : TireBead[1];)
     if hasattr(non_occ, 'endFeatureUsage') and non_occ.endFeatureUsage():
