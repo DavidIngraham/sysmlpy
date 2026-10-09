@@ -7822,9 +7822,10 @@ class ConnectionUsage:
             if not declared and decl is not None and decl.specialization is not None:
                 declared = True
 
-        if declared:
+        if declared or self.part is None:
             output.append(self.keyword)
-            output.append(self.declaration.dump())
+            if self.declaration is not None:
+                output.append(self.declaration.dump())
 
         if self.part is not None:
             output.append(self.keyword2)

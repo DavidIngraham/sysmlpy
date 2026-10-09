@@ -6154,13 +6154,15 @@ def _make_end_feature_usage_dict(ctx):
                         fd = fd[0]
                     if hasattr(fd, 'featureSpecializationPart') and fd.featureSpecializationPart():
                         fsp = fd.featureSpecializationPart()
-                        specialization = _build_specialization_from_fsp(fsp)
+                        specialization = _build_full_specialization_from_ud(fd)
     
     # The end target (::>) is on the direct feature declaration, not the
     # cross-feature declaration in the prefix. Use the complete converter.
     multiplicity_dict = None
     if hasattr(ctx, 'featureDeclaration') and ctx.featureDeclaration():
         fd = ctx.featureDeclaration()
+        if name is None and hasattr(fd, 'featureIdentification') and fd.featureIdentification():
+            name, shortname = _extract_name_from_ident(fd.featureIdentification())
         if hasattr(fd, 'featureSpecializationPart') and fd.featureSpecializationPart():
             fsp = fd.featureSpecializationPart()
             direct_specialization = _build_full_specialization_from_ud(fd)

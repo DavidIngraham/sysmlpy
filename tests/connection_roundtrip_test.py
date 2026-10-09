@@ -71,3 +71,23 @@ def test_edit_connection_body_preserves_extended_ends():
 def test_extended_end_public_dump():
     end = loads(INLINE).find('d')[0].children[0]
     assert 'end#startRolesource::>a;' in compact(end.dump())
+
+
+def test_anonymous_connection_keyword_roundtrip():
+    source='package P { connection {end a; end b;} }'
+    for _ in range(2):
+        source=loads(source).dump()
+        assert 'connection' in source
+        assert 'end a' in source
+
+
+def test_body_subsetting_and_binding_are_both_preserved():
+    source = """package P {
+        part a; part b; part sources; part targets;
+        connection c {end s :> sources ::> a; end t :> targets ::> b;}
+    }"""
+    for _ in range(2):
+        source = loads(source).dump()
+        text = compact(source)
+        assert 'ends:>sources::>a;' in text
+        assert 'endt:>targets::>b;' in text
