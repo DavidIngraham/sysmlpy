@@ -2,6 +2,13 @@
 
 ## Unreleased (on main)
 
+- Add initial support for the Requirement Derivation Domain Library.
+  Preserve metadata-prefixed connection bodies and extended usages, including
+  requirement derivation ends, through grammar and public-model round trips.
+  Preserve ordinary end reference subsetting and resolve inherited derivation
+  roles in General Views, with endpoint/cardinality checks. Add a pinned OMG
+  example and before/after round-trip and rendering regressions. See `docs/requirement-derivation.md` for notation and limits.
+
 - **CI integrations: GitHub Actions, GitLab CI, pre-commit (new
   `sysmlpy ci` subcommand).** One engine (`src/sysmlpy/ci_check.py`)
   behind every integration, one exit-code contract: 0 clean, 1

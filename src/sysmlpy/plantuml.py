@@ -1047,6 +1047,11 @@ class PlantUMLGenerator:
 
     def _traverse(self, element, parent=None):
         """Recursively traverse the model tree, collecting elements and relationships."""
+        # Metadata-prefixed connection ends describe relationship roles; they
+        # are not standalone boxes (which would also create phantom nodes).
+        grammar = getattr(element, 'grammar', None)
+        if type(grammar).__name__ == 'EndFeatureUsage' or (type(grammar).__name__ == 'ExtendedUsage' and 'end' in grammar.prefix.split()):
+            return
         elem_id = id(element)
         if elem_id in self._visited:
             return
@@ -2603,6 +2608,12 @@ def _extract_connection_endpoints(conn_element):
     return None, None
 
 
+def _extract_derivations(model):
+    """Project resolved standard-library derivations into view edges."""
+    from .derivation import extract_derivations
+    return extract_derivations(model)[0]
+
+
 def _extract_connections(model):
     """Scan the model for all connector usages (``connection`` elements).
 
@@ -3968,6 +3979,16 @@ def as_general_view(model, focus=None, elements=None, style="bw", direction="TB"
     id_map = gen.id_map
     elements_list = gen.elements
     relationships = gen.relationships
+
+    # A readable convention for the requirement-derivation domain library:
+    # original ..> derived. Only draw edges whose requirement nodes are visible.
+    for original, derived in _extract_derivations(model):
+        if gen._is_included(original) and gen._is_included(derived):
+            src, dst = id_map.get(id(original)), id_map.get(id(derived))
+            if src and dst:
+                relationship = (src, ARROW_STYLES['derive'], dst, '«derive»', False)
+                if relationship not in relationships:
+                    relationships.append(relationship)
 
     gv_types = {"part", "port", "interface", "item", "attribute",
                 "connection", "flow", "allocation", "action", "state",

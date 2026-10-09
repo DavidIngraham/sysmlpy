@@ -11,6 +11,14 @@
 
 ## Project Overview
 
+Local development on `fix/requirement-derivation` adds connection-body and
+metadata-prefix preservation, structured extended/ordinary end usages, and
+inline/typed-definition derivation edges in General Views. An unchanged, pinned
+OMG example demonstrates upstream parse success but round-trip/render failures;
+the same assertions pass with the fix. Regression tests are in
+`tests/derivation_test.py`; usage and remaining scope are documented in
+`docs/requirement-derivation.md`.
+
 **sysmlpy** is a pure Python library for parsing, manipulating, and validating SysML v2.0 models. It uses an ANTLR4 parser (based on the [OMG SysML v2 grammar](https://github.com/daltskin/sysml-v2-grammar)) and provides both a programmatic API for building models and a semantic analysis engine for validating them.
 
 ### Architecture

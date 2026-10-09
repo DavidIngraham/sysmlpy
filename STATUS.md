@@ -6,6 +6,10 @@ Current version: **v0.96.4** (2026-09-30)
 
 ## In Flight (on main, unreleased)
 
+- Local requirement-derivation fix: retain connection metadata and bodies;
+  render inline and typed-definition derivations in General Views. The pinned
+  OMG example now passes preservation and inherited-role regressions. See `docs/requirement-derivation.md`.
+
 - **CI integrations** (GitHub Actions / GitLab / pre-commit, new
   `sysmlpy ci` subcommand): parse gate blocking, semantics advisory
   (`--semantic strict` opt-in) — see `docs/ci-integration.md`. Dogfooded
