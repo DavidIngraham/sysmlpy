@@ -2,6 +2,12 @@
 
 ## Unreleased (on main)
 
+- Add explicit, context-local domain extension hooks for analysis, relationships,
+  and typed-value validation. Migrate Requirement Derivation and ISQ unit policies
+  to adapters; catalog Analysis, Cause and Effect, Geometry, and Metadata as
+  model-only. Preserve default behavior and shared Pint arithmetic. See
+  `docs/domain-extensions.md` for the API and boundaries.
+
 - Extend Requirement Derivation Domain Library support to direct base
   typing/subsetting, metadata subclasses, inherited/redefined and unnamed ends,
   and role-resolvable connector shorthand. Integrate structural diagnostics and

@@ -197,17 +197,13 @@ example's PlantUML renders successfully to SVG.
 
 ## Current modularity
 
-The repository bundles domain models separately under `library/domain`: Analysis,
-Cause and Effect, Geometry, Metadata, Quantities and Units, and Requirement
-Derivation. Generic library indexing is provided by `LibrarySymbolIndex` in
-`semantic.py`; bundling/indexing models does not imply complete execution of their
-semantics. Quantities and Units additionally has Python implementation in
-`validator.py`, `evaluator.py`, `usage.py`, and `semantic.py`.
+Domain hooks now live in `sysmlpy.domains`. Requirement derivation supplies an
+adapter for analysis and relationships; semantic analysis, General Views, and
+requirement traceability consume the shared interface. Existing extraction and
+implication algorithms remain in `derivation.py`.
 
-Derivation interpretation is isolated in `derivation.py`, but `semantic.py`,
-`plantuml.py`, and `traceability.py` call it directly. There is no shared domain
-adapter registration interface today. A future modularity change should introduce
-a domain-independent hook contract in its own core commit, followed by domain
-adapters in separate commits. It should preserve default behavior and reuse common
-name resolution rather than grow multiple independent resolvers. No such framework
-is claimed or introduced by this patch.
+The Quantities and Units adapter supplies dimensional diagnostics and typed-value
+validation. Pint representation/arithmetic and the shared expression engine remain
+common infrastructure. The other four bundled domains have model-only catalog
+entries, not new executable semantics. See [Domain extensions](domain-extensions.md)
+for registration, selection, and migration boundaries.

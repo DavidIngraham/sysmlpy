@@ -1,7 +1,7 @@
 # sysmlpy — Project Work Summary
 
 > **For:** Future agents and team members
-> **Last Updated:** September 30, 2026
+> **Last Updated:** October 9, 2026
 > **Current Version:** v0.96.4
 > **Repository:** https://github.com/mycr0ft/sysmlpy
 > **Roadmap:** the 10-goal Adoption Roadmap (docs/archive/DEVELOPMENT_PLAN.md,
@@ -10,6 +10,11 @@
 ---
 
 ## Project Overview
+
+`sysmlpy.domains` now provides explicit registration and context-local selection
+of domain analysis, relationship, and value-validation hooks. Derivation and unit
+policies use adapters; four other bundled libraries are cataloged as model-only.
+Quantity arithmetic remains shared infrastructure. See `docs/domain-extensions.md`.
 
 Local development on `fix/requirement-derivation` adds connection-body and
 metadata-prefix preservation, structured extended/ordinary end usages, and

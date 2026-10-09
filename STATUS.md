@@ -6,11 +6,16 @@ Current version: **v0.96.4** (2026-09-30)
 
 ## In Flight (on main, unreleased)
 
+- Domain extensions: immutable registry with context-local selection; executable
+  adapters for derivation and unit policies, plus four model-only catalog entries.
+  Core contracts and domain migrations are separate commits on the personal fork.
+  See `docs/domain-extensions.md`.
+
 - Local requirement-derivation fix: retain connection metadata and bodies;
   render inline and typed-definition derivations in General Views. The pinned
   OMG examples pass derivation-preservation and inherited/unnamed-role regressions.
   Direct library forms, metadata subclasses, analyzer checks, explicit implication
-  evaluation, traceability output, and interchange are covered by the third commit. See `docs/requirement-derivation.md`.
+  evaluation, traceability output, and interchange are covered by the support commits. See `docs/requirement-derivation.md`.
 
 - **CI integrations** (GitHub Actions / GitLab / pre-commit, new
   `sysmlpy ci` subcommand): parse gate blocking, semantics advisory
