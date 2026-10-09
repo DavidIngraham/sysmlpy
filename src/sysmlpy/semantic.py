@@ -2867,8 +2867,6 @@ class SemanticAnalyzer:
         # Step 4c: Expression type checking & unit-dimension safety
         # (v0.55.0 Phase C).
         issues.extend(self._check_expression_types(model, symtab, lib_roots))
-        issues.extend(
-            self._check_expression_derivations(model, symtab, lib_roots))
 
         # Step 5: OCL well-formedness constraints
         issues.extend(self._check_duplicate_names(symtab))
@@ -3463,7 +3461,7 @@ class SemanticAnalyzer:
         - unit-dimension compatibility (pint) when both sides carry SI
           quantity types
         """
-        checker = ExpressionTypeChecker(self, symtab, lib_roots)
+        checker = ExpressionTypeChecker(self, symtab, lib_roots, include_units=False)
         return checker.check(model)
 
     def _check_unit_compatibility(

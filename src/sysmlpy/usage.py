@@ -1769,15 +1769,12 @@ class Attribute(Usage):
         if not isinstance(value, pint.Quantity):
             value = value * ureg.dimensionless
         if isinstance(value, pint.Quantity):
-            # Validate unit conformance to ISQ type if attribute is typed
-            if self.typedby is not None and not value.units.dimensionless:
-                type_name = getattr(self.typedby, 'name', None)
-                if type_name is not None:
-                    # Convert type name to ISQ value type format (e.g., 'mass' -> 'MassValue')
-                    isq_type = type_name.capitalize() + 'Value'
-                    is_conformant, message = validate_unit_conformance(isq_type, value)
-                    if not is_conformant:
-                        raise ValueError(message)
+            # Domain-specific value policies are supplied by active adapters.
+            from sysmlpy.domains import get_registry
+            type_name = getattr(self.typedby, 'name', None) if self.typedby is not None else None
+            for issue in get_registry().validate_value(type_name, value):
+                if issue.severity == 'error':
+                    raise ValueError(issue.message)
 
             # Only add units if not dimensionless
             if not value.units.dimensionless:
