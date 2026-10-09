@@ -7,4 +7,6 @@ from .registry import DomainRegistry
 def builtin_registry():
     from .requirement_derivation import RequirementDerivationAdapter
     from .quantities_units import QuantitiesUnitsAdapter
-    return DomainRegistry((QuantitiesUnitsAdapter(), RequirementDerivationAdapter()))
+    from .catalog import model_library_adapters
+    return DomainRegistry((QuantitiesUnitsAdapter(), RequirementDerivationAdapter())
+                          + model_library_adapters())
